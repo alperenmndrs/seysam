@@ -53,6 +53,21 @@ def safe_image(data):
         raise ValueError('Geçerli bir PNG, JPG, WebP veya dış kaynak içermeyen SVG yükleyin.')
 
 
+def video_embed(value):
+    parsed = urlsplit(value)
+    if parsed.scheme != 'https' or parsed.username or parsed.password:
+        raise ValueError('HTTPS ile başlayan bir YouTube veya Vimeo bağlantısı girin.')
+    host = parsed.hostname
+    key = ''
+    if host in ('youtube.com', 'www.youtube.com', 'm.youtube.com'):
+        key = parse_qs(parsed.query).get('v', [''])[0] if parsed.path == '/watch' else parsed.path.split('/')[-1] if parsed.path.startswith(('/shorts/', '/embed/')) else ''
+    elif host == 'youtu.be': key = parsed.path.strip('/')
+    if re.fullmatch(r'[A-Za-z0-9_-]{11}', key): return 'https://www.youtube-nocookie.com/embed/' + key
+    if host in ('vimeo.com', 'www.vimeo.com') and re.fullmatch(r'/\d+', parsed.path):
+        return 'https://player.vimeo.com/video/' + parsed.path.strip('/')
+    raise ValueError('Geçerli bir YouTube veya Vimeo video bağlantısı girin.')
+
+
 class SiteServer(ThreadingHTTPServer):
     daemon_threads=True
     allow_reuse_address=True
@@ -75,6 +90,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Referrer-Policy','same-origin')
         self.send_header('X-Frame-Options','DENY')
         csp = "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'" if content_type=="image/svg+xml" else "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        if content_type.startswith('text/html'): csp += "; frame-src https://www.youtube-nocookie.com https://player.vimeo.com"
         self.send_header('Content-Security-Policy',csp)
         for key,val in (headers or {}).items(): self.send_header(key,val)
         self.end_headers()
@@ -124,10 +140,12 @@ class Handler(BaseHTTPRequestHandler):
     def read_form(self):
         try: length=int(self.headers.get('Content-Length','0'))
         except ValueError: raise ValueError('İstek okunamadı.')
-        if length<=0 or length>MAX_BODY: raise ValueError('Form en fazla 6 MB olabilir.')
+        gallery_upload=bool(re.fullmatch(r'/admin/projeler/\d+/galeri',urlsplit(self.path).path))
+        limit=31*1024*1024 if gallery_upload else MAX_BODY
+        if length<=0 or length>limit: raise ValueError('Galeri yüklemesi toplam 30 MB sınırını aşıyor.' if gallery_upload else 'Form en fazla 6 MB olabilir.')
         body=self.rfile.read(length)
         content_type=self.headers.get('Content-Type','')
-        fields={}; upload=None
+        fields={}; uploads=[]
         if content_type.startswith('multipart/form-data'):
             msg=BytesParser(policy=policy.default).parsebytes(('Content-Type: '+content_type+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+body)
             if not msg.is_multipart(): raise ValueError('Form okunamadı.')
@@ -136,14 +154,17 @@ class Handler(BaseHTTPRequestHandler):
                 if not name: continue
                 data=part.get_payload(decode=True) or b''
                 if part.get_filename():
-                    if name=='media' and data: upload=data
+                    if name=='media' and data:
+                        uploads.append(data)
+                        if len(uploads)>12: raise ValueError('Tek seferde en fazla 12 fotoğraf seçin.')
                 else:
                     if len(data)>50000: raise ValueError('Metin çok uzun.')
                     fields[name]=data.decode('utf-8')
         elif content_type.startswith('application/x-www-form-urlencoded'):
             fields={k:v[-1] for k,v in parse_qs(body.decode('utf-8'),keep_blank_values=True,max_num_fields=30).items()}
         else: raise ValueError('Desteklenmeyen form türü.')
-        return fields,upload
+        if not gallery_upload and len(uploads)>1: raise ValueError('Bu alan için yalnızca bir görsel seçin.')
+        return fields,uploads if gallery_upload else (uploads[0] if uploads else None)
 
     def record(self,kind,ident):
         with storage.connect() as db:
@@ -177,7 +198,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not file.is_file(): return self.fail(404,'Görsel bulunamadı.')
                 # Draft-only media requires the same admin authorization as the draft.
                 with storage.connect() as db:
-                    published=db.execute('SELECT 1 FROM projects WHERE image=? AND published=1 UNION ALL SELECT 1 FROM companies c JOIN reference_items r ON r.company_id=c.id WHERE c.logo=? AND r.published=1 LIMIT 1',(path,path)).fetchone()
+                    published=db.execute('SELECT 1 FROM projects WHERE image=? AND published=1 UNION ALL SELECT 1 FROM companies c JOIN reference_items r ON r.company_id=c.id WHERE c.logo=? AND r.published=1 UNION ALL SELECT 1 FROM project_media m JOIN projects p ON p.id=m.project_id WHERE m.url=? AND p.published=1 LIMIT 1',(path,path,path)).fetchone()
                 session=self.get_session()
                 if not published and not (session and session['user_id']): return self.fail(404,'Görsel bulunamadı.')
                 return self.send(file.read_bytes(),content_type=mimetypes.guess_type(str(file))[0],headers={'Cache-Control':'private, no-store'})
@@ -213,6 +234,13 @@ class Handler(BaseHTTPRequestHandler):
             if not session: session,cookie=self.new_session()
             return self.send(views.auth_page(session['csrf']),headers={'Set-Cookie':cookie} if cookie else None)
         csrf=session['csrf']
+        if path=='/admin/site-bilgileri': return self.send(views.settings_page(csrf,'Bilgiler kaydedildi.' if parse_qs(query).get('kaydedildi') else ''))
+        gallery_match=re.fullmatch(r'/admin/projeler/(\d+)/galeri',path)
+        if gallery_match:
+            project=self.record('projeler',int(gallery_match[1]))
+            if not project: return self.fail(404,'Proje bulunamadı.')
+            with storage.connect() as db: media=[dict(r) for r in db.execute('SELECT * FROM project_media WHERE project_id=? ORDER BY position,id',(project['id'],))]
+            return self.send(views.gallery_editor(project,media,csrf))
         if path in ('/admin','/admin/giris','/admin/kurulum'):
             with storage.connect() as db: counts={key:db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0] for key,table in TABLES.items()}
             return self.send(views.dashboard(csrf,counts))
@@ -254,6 +282,20 @@ class Handler(BaseHTTPRequestHandler):
                 with storage.connect() as db: db.execute('DELETE FROM sessions WHERE token=?',(session['token'],))
                 return self.redirect('/admin',self.cookie(clear=True))
             if path=='/admin/hesap': return self.change_password(fields,session)
+            if path=='/admin/site-bilgileri':
+                values={k:fields.get(k,'').strip() for k in ('whatsapp','address','instagram','linkedin')}
+                if any(len(v)>500 for v in values.values()): raise ValueError('Alanlar en fazla 500 karakter olabilir.')
+                values['whatsapp']=re.sub(r'[\s()+-]','',values['whatsapp'])
+                if values['whatsapp'] and not re.fullmatch(r'[1-9]\d{9,14}',values['whatsapp']): raise ValueError('Telefonu ülke koduyla girin.')
+                for key,hosts in [('instagram',('instagram.com','www.instagram.com')),('linkedin',('linkedin.com','www.linkedin.com','tr.linkedin.com'))]:
+                    if values[key]:
+                        url=urlsplit(values[key])
+                        if url.scheme!='https' or url.hostname not in hosts or url.username or url.password: raise ValueError('Geçerli bir '+key+' HTTPS hesap bağlantısı girin.')
+                with storage.connect() as db:
+                    for key,value in values.items(): db.execute('INSERT INTO app_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',('site_'+key,value))
+                return self.redirect('/admin/site-bilgileri?kaydedildi=1')
+            gallery_match=re.fullmatch(r'/admin/projeler/(\d+)/galeri(?:/(\d+)/sil)?',path)
+            if gallery_match: return self.save_gallery(gallery_match,fields,upload)
             match=re.fullmatch(r'/admin/(sirketler|projeler|referanslar)/(yeni|\d+)(?:/(duzenle|sil))?',path)
             if not match: return self.fail(404,'İşlem bulunamadı.')
             kind,ident,action=match.groups()
@@ -366,6 +408,40 @@ class Handler(BaseHTTPRequestHandler):
             if current.get('id'): retained['id']=current['id']
             if upload: error+=' Güvenlik nedeniyle dosyayı yeniden seçmeniz gerekir.'
             return self.send(views.record_form(kind,session['csrf'],self.companies(),retained,error),400)
+
+    def save_gallery(self,match,fields,upload):
+        project_id,media_id=match.groups()
+        if not self.record('projeler',int(project_id)): return self.fail(404,'Proje bulunamadı.')
+        if media_id:
+            with storage.connect() as db: db.execute('DELETE FROM project_media WHERE id=? AND project_id=?',(media_id,project_id))
+        else:
+            caption=fields.get('caption','').strip()
+            if len(caption)>250: raise ValueError('Açıklama en fazla 250 karakter olabilir.')
+            try: position=int(fields.get('position','0'))
+            except ValueError: raise ValueError('Sıra numarası geçerli olmalı.')
+            if not 0<=position<=9999: raise ValueError('Sıra numarası 0–9999 arasında olmalı.')
+            video=fields.get('video_url','').strip()
+            if bool(upload)==bool(video): raise ValueError('Bir fotoğraf veya bir video bağlantısı seçin.')
+            saved=[]
+            if upload:
+                if sum(map(len,upload))>30*1024*1024: raise ValueError('Fotoğrafların toplamı en fazla 30 MB olabilir.')
+                images=[safe_image(data) for data in upload]
+                if position+len(images)-1>9999: raise ValueError('Başlangıç sırası daha küçük olmalı.')
+            else: images=[]
+            rows=[]
+            try:
+                for index,(data,ext) in enumerate(images):
+                    file=storage.UPLOADS/(secrets.token_hex(16)+ext)
+                    saved.append(file)
+                    file.write_bytes(data)
+                    os.chmod(file,0o600)
+                    rows.append((project_id,'image','/uploads/'+file.name,caption,position+index))
+                if not images: rows.append((project_id,'video',video_embed(video),caption,position))
+                with storage.connect() as db: db.executemany('INSERT INTO project_media(project_id,kind,url,caption,position) VALUES(?,?,?,?,?)',rows)
+            except Exception:
+                for file in saved: file.unlink(missing_ok=True)
+                raise
+        return self.redirect('/admin/projeler/'+project_id+'/galeri')
 
 
 def make_server(host='127.0.0.1',port=4173,origin=None):

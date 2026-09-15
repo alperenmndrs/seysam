@@ -8,6 +8,7 @@
       toggle.setAttribute('aria-expanded', String(open));
       toggle.textContent = open ? 'Kapat' : 'Menü';
       nav.hidden = mobile.matches && !open;
+      document.body.classList.toggle('menu-open', mobile.matches && open);
     };
     const syncMenu = () => { toggle.hidden = !mobile.matches; setMenu(false); };
     syncMenu();
@@ -63,6 +64,49 @@
 
   // Public-site effects. Form and admin behavior above remains independent.
   if (document.body.classList.contains('admin-body')) return;
+
+  const pageContent = document.getElementById('main');
+  let leavingPage = false;
+  let pageAnimation;
+  const restorePage = () => {
+    leavingPage = false;
+    pageAnimation?.cancel();
+  };
+  window.addEventListener('pageshow', restorePage);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || motion.matches || leavingPage || !pageContent?.animate) return;
+    pageAnimation?.cancel();
+    pageAnimation = pageContent.animate([{opacity: .7}, {opacity: 1}], {duration: 200, easing: 'ease-out'});
+  });
+  document.addEventListener('click', event => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || motion.matches || !pageContent?.animate) return;
+    const link = event.target.closest('a[href]');
+    if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+    const url = new URL(link.href, location.href);
+    if (url.origin !== location.origin || url.pathname.startsWith('/admin') || (url.pathname === location.pathname && url.search === location.search)) return;
+    event.preventDefault();
+    if (leavingPage) return;
+    leavingPage = true;
+    pageAnimation?.cancel();
+    pageAnimation = pageContent.animate([{opacity: 1}, {opacity: .35}], {duration: 140, easing: 'ease-out'});
+    pageAnimation.finished.catch(() => {}).then(() => location.assign(url.href));
+  });
+
+  const viewer = document.getElementById('image-viewer');
+  if (viewer && typeof viewer.showModal === 'function') {
+    const picture = viewer.querySelector('img');
+    document.querySelectorAll('.gallery-open').forEach(button => {
+      button.addEventListener('click', () => {
+        picture.src = button.dataset.fullImage;
+        picture.alt = button.dataset.caption;
+        viewer.querySelector('p').textContent = button.dataset.caption;
+        viewer.showModal();
+      });
+    });
+    viewer.querySelector('.viewer-close').addEventListener('click', () => viewer.close());
+    viewer.addEventListener('click', event => { if (event.target === viewer) viewer.close(); });
+    viewer.addEventListener('close', () => picture.removeAttribute('src'));
+  }
 
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
   const stage = document.querySelector('[data-hero-motion]');

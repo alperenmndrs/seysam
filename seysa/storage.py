@@ -29,11 +29,14 @@ def initialize():
         CREATE TABLE IF NOT EXISTS companies (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sector TEXT NOT NULL DEFAULT '', website TEXT NOT NULL DEFAULT '', logo TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', service TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '', published INTEGER NOT NULL DEFAULT 0 CHECK(published IN (0,1)), position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
         CREATE INDEX IF NOT EXISTS idx_projects_published_position ON projects(published,position);
+        CREATE TABLE IF NOT EXISTS project_media (id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('image','video')), url TEXT NOT NULL, caption TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS reference_items (id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE, quote TEXT NOT NULL DEFAULT '', author TEXT NOT NULL DEFAULT '', is_sample INTEGER NOT NULL DEFAULT 0 CHECK(is_sample IN (0,1)), published INTEGER NOT NULL DEFAULT 0 CHECK(published IN (0,1)), position INTEGER NOT NULL DEFAULT 0);
         CREATE INDEX IF NOT EXISTS idx_references_published_position ON reference_items(published,position);
         CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         ''')
         db.execute('PRAGMA optimize')
+        for key,value in {'whatsapp':'905888888888', 'address':'Prestige 24 Plaza N:10 Bahçelievler/İstanbul', 'instagram':'https://www.instagram.com/seysamedya/', 'linkedin':'https://www.linkedin.com/company/seysamedya/'}.items():
+            db.execute('INSERT OR IGNORE INTO app_meta(key,value) VALUES(?,?)',('site_'+key,value))
     if DB.exists(): os.chmod(DB, 0o600)
 
 def password_hash(password):
@@ -54,4 +57,10 @@ def public_data():
     with connect() as db:
         projects = [dict(r) for r in db.execute('SELECT p.*, c.name AS company_name FROM projects p LEFT JOIN companies c ON c.id=p.company_id WHERE p.published=1 ORDER BY p.position, p.id DESC')]
         refs = [dict(r) for r in db.execute('SELECT r.*, c.name, c.logo, c.sector, c.website FROM reference_items r JOIN companies c ON c.id=r.company_id WHERE r.published=1 ORDER BY r.position, r.id')]
+        media = [dict(r) for r in db.execute('SELECT m.* FROM project_media m JOIN projects p ON p.id=m.project_id WHERE p.published=1 ORDER BY m.position,m.id')]
+        for project in projects: project['gallery'] = [m for m in media if m['project_id']==project['id']]
     return projects, refs
+
+def site_settings():
+    with connect() as db:
+        return {r['key'][5:]:r['value'] for r in db.execute("SELECT key,value FROM app_meta WHERE key IN ('site_whatsapp','site_address','site_instagram','site_linkedin')")}

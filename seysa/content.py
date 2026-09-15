@@ -3,7 +3,12 @@ GROUPS = [
     ('sosyal-medya-yonetimi', 'Sosyal Medya Yönetimi', 'İçerik planlama, tasarım, yayın ve hesap yönetimini birlikte yürütüyoruz.', [
         ('İçerik planı', 'Markanıza uygun içerik başlıklarını ve yayın takvimini hazırlıyoruz.'),
         ('Hesap yönetimi', 'Paylaşımları, gelen etkileşimleri ve hesap düzenini takip ediyoruz.'),
-        ('Değerlendirme', 'İçerik performansını raporluyor, sonraki ayın planını oluşturuyoruz.')], []),
+        ('Değerlendirme', 'İçerik performansını raporluyor, sonraki ayın planını oluşturuyoruz.')], [
+        ('strateji-icerik-plani', 'Strateji & İçerik Planı', 'Markanızın sosyal medyada neyi, kime ve nasıl anlatacağını planlıyoruz.', ['Hedef kitle ve mevcut hesapların değerlendirilmesi', 'İçerik başlıkları ve iletişim dili', 'Aylık yayın takvimi']),
+        ('paylasim-hikaye-tasarimi', 'Paylaşım & Hikâye Tasarımı', 'Akış, hikâye ve kaydırmalı paylaşımlar için markanıza uygun görseller hazırlıyoruz.', ['Markaya uygun tasarım şablonları', 'Paylaşım metinleri ve görsel yerleşimi', 'Platforma uygun dosya teslimi']),
+        ('reels-kisa-video', 'Reels & Kısa Video', 'Sosyal kanallarınız için izlenebilir, mesajı net kısa videolar üretiyoruz.', ['İçerik fikri ve kısa senaryo', 'Çekim ihtiyacı ve üretim planı', 'Dikey kurgu, altyazı ve kapak tasarımı']),
+        ('hesap-topluluk-yonetimi', 'Hesap & Topluluk Yönetimi', 'Hesaplarınızın günlük düzenini, yayınlarını ve etkileşimlerini takip ediyoruz.', ['Profil ve hesap düzeni', 'İçeriklerin planlanması ve yayınlanması', 'Yorum ve mesajlar için yanıt akışı']),
+        ('analiz-raporlama', 'Analiz & Raporlama', 'İçeriklerin sonuçlarını değerlendiriyor, sonraki dönem için somut öneriler hazırlıyoruz.', ['Erişim ve etkileşim değerlendirmesi', 'İçerik türlerine göre performans analizi', 'Dönem raporu ve yeni içerik önerileri'])]),
     ('produksiyon', 'Prodüksiyon', 'Fotoğraf ve video çekiminden kurguya kadar tüm üretim sürecini yönetiyoruz.', [], [
         ('fotograf', 'Fotoğraf Çekimi', 'Ürün, mekân, kurumsal portre ve etkinlik fotoğrafları çekiyoruz.', ['Çekim planı ve hazırlık', 'Stüdyo veya yerinde çekim', 'Seçim, düzenleme ve teslim']),
         ('video', 'Video Çekimi', 'Markanızı, ürününüzü ve hizmetinizi anlatan videolar hazırlıyoruz.', ['Senaryo ve çekim planı', 'Görüntü ve ses kaydı', 'Kurgu ve yayın formatları']),

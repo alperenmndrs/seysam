@@ -25,7 +25,9 @@ class Client:
                 boundary='SeysaTestBoundary'
                 body=b''
                 for k,v in fields.items(): body+=f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
-                body+=f'--{boundary}\r\nContent-Disposition: form-data; name="media"; filename="logo.png"\r\nContent-Type: image/png\r\n\r\n'.encode()+upload+f'\r\n--{boundary}--\r\n'.encode()
+                for photo in (upload if isinstance(upload,list) else [upload]):
+                    body+=f'--{boundary}\r\nContent-Disposition: form-data; name="media"; filename="logo.png"\r\nContent-Type: image/png\r\n\r\n'.encode()+photo+b'\r\n'
+                body+=f'--{boundary}--\r\n'.encode()
                 headers['Content-Type']='multipart/form-data; boundary='+boundary
             else:
                 from urllib.parse import urlencode
@@ -98,6 +100,46 @@ class WebsiteTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT COUNT(*) FROM reference_items').fetchone()[0],0)
             self.assertIsNone(db.execute('SELECT company_id FROM projects').fetchone()[0])
         self.assertEqual(other.request('/projeler/'+str(p['id']))[0],200)
+    def test_gallery_and_site_settings(self):
+        csrf=self.setup_admin(); visitor=Client(self.client.port)
+        self.assertEqual(self.client.request('/admin/projeler/yeni',{'csrf':csrf,'title':'Galeri testi'})[0],303)
+        with storage.connect() as db: project_id=db.execute('SELECT id FROM projects').fetchone()[0]
+        gallery=f'/admin/projeler/{project_id}/galeri'
+        self.assertEqual(self.client.request(gallery,{'csrf':csrf,'position':'10'},upload=[PNG,PNG])[0],303)
+        with storage.connect() as db:
+            self.assertEqual([r[0] for r in db.execute('SELECT position FROM project_media ORDER BY position')],[10,11])
+            before_files=len(list(storage.UPLOADS.iterdir()))
+        self.assertEqual(self.client.request(gallery,{'csrf':csrf},upload=[PNG,b'not an image'])[0],400)
+        with storage.connect() as db: self.assertEqual(db.execute('SELECT COUNT(*) FROM project_media').fetchone()[0],2)
+        self.assertEqual(len(list(storage.UPLOADS.iterdir())),before_files)
+        self.assertEqual(visitor.request(gallery,{'csrf':visitor.token()},upload=PNG)[0],401)
+        self.assertEqual(self.client.request(gallery,{'csrf':'wrong'},upload=PNG)[0],403)
+        self.assertEqual(self.client.request(gallery,{'csrf':csrf,'caption':'Fotoğraf','position':'2'},upload=PNG)[0],303)
+        self.assertEqual(self.client.request(gallery,{'csrf':csrf,'video_url':'https://youtu.be/abcdefghijk','caption':'Video','position':'1'})[0],303)
+        self.assertEqual(self.client.request(gallery,{'csrf':csrf,'video_url':'https://evil.example/embed/abcdefghijk'})[0],400)
+        with storage.connect() as db: photo=dict(db.execute("SELECT * FROM project_media WHERE kind='image'").fetchone())
+        self.assertEqual(visitor.request(photo['url'])[0],404)
+        self.assertEqual(self.client.request(photo['url'])[0],200)
+        self.assertEqual(self.client.request(f'/admin/projeler/{project_id}/duzenle',{'csrf':csrf,'title':'Galeri testi','published':'1'})[0],303)
+        self.assertEqual(visitor.request(photo['url'])[0],200)
+        status,body,headers=visitor.request(f'/projeler/{project_id}')
+        self.assertEqual(status,200)
+        self.assertIn(b'id="image-viewer"',body)
+        self.assertIn(b'https://www.youtube-nocookie.com/embed/abcdefghijk',body)
+        self.assertLess(body.index(b'<iframe'),body.index(b'class="gallery-open"'))
+        self.assertIn('frame-src',headers['Content-Security-Policy'])
+        self.assertEqual(self.client.request(gallery+f'/{photo["id"]}/sil',{'csrf':csrf})[0],303)
+        self.assertEqual(visitor.request(photo['url'])[0],404)
+        settings={'csrf':csrf,'whatsapp':'+90 588 888 88 88','address':'Test adresi','instagram':'https://www.instagram.com/seysamedya/','linkedin':'https://www.linkedin.com/company/seysamedya/'}
+        self.assertEqual(self.client.request('/admin/site-bilgileri',settings)[0],303)
+        home=visitor.request('/')[1]
+        self.assertIn(b'https://wa.me/905888888888',home)
+        self.assertIn(b'Test adresi',home)
+        settings['instagram']='javascript:alert(1)'
+        self.assertEqual(self.client.request('/admin/site-bilgileri',settings)[0],400)
+        self.assertEqual(self.client.request(f'/admin/projeler/{project_id}/sil',{'csrf':csrf})[0],303)
+        with storage.connect() as db: self.assertEqual(db.execute('SELECT COUNT(*) FROM project_media').fetchone()[0],0)
+
     def test_auth_csrf_logout_and_upload_safety(self):
         anonymous_token=self.client.token()
         self.assertEqual(self.client.request('/admin/sirketler/yeni',{'csrf':anonymous_token,'name':'Blocked'})[0],401)
