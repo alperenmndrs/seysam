@@ -3,6 +3,7 @@ from urllib.parse import quote
 from pathlib import Path
 from . import storage
 from .content import GROUPS, SERVICES, NAV, PACKAGES
+from .journal import ARTICLES, ARTICLE_BY_SLUG
 
 
 def e(value):
@@ -39,7 +40,7 @@ def page(title, body, path='/', description='', csrf='', admin=False, authentica
     if not admin:
         settings = storage.site_settings()
         socials = ''.join(f'<a href="{e(settings[k])}" target="_blank" rel="noopener noreferrer">{social_icon(k)}{label} ↗</a>' if settings.get(k) else f'<span class="social-pending">{social_icon(k)}{label}</span>' for k,label in [('instagram','Instagram'),('linkedin','LinkedIn')])
-        footer = '<footer class="site-footer balanced-footer"><div class="container footer-grid"><div class="footer-brand"><a class="brand" href="/" aria-label="Seysa Medya">'+logo+'</a><p>Kreatif fikirler.<br>Güçlü görsel iletişim.</p><div class="footer-socials">'+socials+'</div></div><nav aria-label="Alt menü"><span class="eyebrow">KEŞFEDİN</span><a href="/hizmetler">Hizmetler</a><a href="/projeler">Projeler</a><a href="/referanslar">Referanslar</a><a href="/hakkimizda">Hakkımızda</a></nav><div class="footer-reach"><span class="eyebrow">BİZE ULAŞIN</span><a href="mailto:info@seysamedya.com">info@seysamedya.com</a><address>'+e(settings.get('address',''))+'</address><a class="text-link" href="/iletisim">Projenizi konuşalım ↗</a></div></div><div class="container footer-bottom"><span>© 2026 Seysa Medya</span><span>İstanbul</span></div></footer>'
+        footer = '<footer class="site-footer balanced-footer"><div class="container footer-grid"><div class="footer-brand"><a class="brand" href="/" aria-label="Seysa Medya">'+logo+'</a><p>Kreatif fikirler.<br>Güçlü görsel iletişim.</p><div class="footer-socials">'+socials+'</div></div><nav aria-label="Alt menü"><span class="eyebrow">KEŞFEDİN</span><a href="/hizmetler">Hizmetler</a><a href="/projeler">Projeler</a><a href="/referanslar">Referanslar</a><a href="/icerik-rehberi">İçerik Rehberi</a><a href="/hakkimizda">Hakkımızda</a></nav><div class="footer-reach"><span class="eyebrow">BİZE ULAŞIN</span><a href="mailto:info@seysamedya.com">info@seysamedya.com</a><address>'+e(settings.get('address',''))+'</address><a class="text-link" href="/iletisim">Projenizi konuşalım ↗</a></div></div><div class="container footer-bottom"><span>© 2026 Seysa Medya</span><span>İstanbul</span></div></footer>'
         if settings.get('whatsapp'):
             footer += '<a class="whatsapp-link" href="https://wa.me/'+e(settings['whatsapp'])+'" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp ile yazın">'+social_icon('whatsapp')+'<span>WhatsApp</span></a>'
     return f'''<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><meta name="description" content="{e(description or title)}"><title>{e(title)} — Seysa Medya</title><link rel="icon" href="/assets/seysa-logo.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v={css_version}">{creative_style}<script defer src="/main.js?v={css_version}"></script></head><body class="{'admin-body' if admin else ''}">{header}<main id="main">{body}</main>{footer}</body></html>'''
@@ -325,4 +326,35 @@ def settings_page(csrf,notice=''):
 
 
 def error_page(status,message):
+    if status == 404:
+        body = '<section class="container missing-page"><div class="missing-art" aria-hidden="true"><span>4</span><span class="missing-lens">✳</span><span>4</span></div><span class="eyebrow">404 / SAYFA BULUNAMADI</span><h1>Bu sayfa<br><em>kadrajdan çıkmış.</em></h1><p>Kamerayı çevirdik, burada da yok. Bağlantı değişmiş olabilir.<br>Gelin, sizi doğru sahneye alalım.</p><div class="missing-actions">'+button('Ana sayfaya dön','/')+'<a class="text-link" href="/icerik-rehberi">Hazır gelmişken bir fikir alın ↗</a></div></section>'
+        return page('404 · Sayfa bulunamadı', body, '/404')
     return page(str(status),intro(str(status),message)+'<div class="container section-after-intro">'+button('Ana sayfaya dön','/')+'</div>')
+
+
+def journal_card(item):
+    return f'''<a class="journal-card" href="/icerik-rehberi/{e(item['slug'])}"><div class="journal-cover"><img src="/assets/media/{e(item['image'])}.jpg" alt="" width="1000" height="700" loading="lazy"><span>{'REHBER' if item['category']=='rehberler' else 'SEKTÖR HABERİ'} ↗</span></div><div class="journal-card-copy"><span class="eyebrow">{e(item['topic'])}</span><h2>{e(item['title'])}</h2><p>{e(item['summary'])}</p><time datetime="{item['date']}">{item['date_label']}</time></div></a>'''
+
+
+def journal_page(path='/icerik-rehberi'):
+    selected = path.rsplit('/', 1)[-1]
+    categories = [('icerik-rehberi','Tümü','/icerik-rehberi'), ('rehberler','Rehberler','/icerik-rehberi/rehberler'), ('sektor-haberleri','Sektör Haberleri','/icerik-rehberi/sektor-haberleri')]
+    if path in [c[2] for c in categories]:
+        items = ARTICLES if selected == 'icerik-rehberi' else [a for a in ARTICLES if a['category']==selected]
+        title = 'İçerik Rehberi' if selected == 'icerik-rehberi' else next(c[1] for c in categories if c[0]==selected)
+        tabs = ''.join(f'<a href="{url}"'+(' aria-current="page"' if key==selected else '')+f'>{label}</a>' for key,label,url in categories)
+        body = '<section class="container editorial-intro journal-intro"><span class="eyebrow">SEYSA MEDYA / FİKİR NOTLARI</span><h1>'+('İÇERİK<br><em>REHBERİ.</em>' if selected=='icerik-rehberi' else e(title).upper()+'.')+'</h1><p>Daha iyi içerikler için pratik fikirler.<br>Sosyal medya, prodüksiyon ve dijital dünyadan notlar.</p></section><section class="container journal-list"><nav class="journal-tabs" aria-label="İçerik kategorileri">'+tabs+'</nav><div class="journal-grid">'+''.join(journal_card(a) for a in items)+'</div></section>'
+        return page(title, body, path, 'İçerik pazarlaması rehberleri, Reels ipuçları ve kaynaklı sektör haberleri.')
+    item = ARTICLE_BY_SLUG.get(selected)
+    if not item or path != '/icerik-rehberi/'+selected:
+        return None
+    count = sum(len(text.split()) for _,text in item['sections'])
+    minutes = max(1, (count+149)//150)
+    toc = ''.join(f'<a href="#bolum-{i}">{e(title)}</a>' for i,(title,_) in enumerate(item['sections'],1))
+    sections = ''.join(f'<section id="bolum-{i}"><h2>{e(title)}</h2><p>{e(text)}</p></section>' for i,(title,text) in enumerate(item['sections'],1))
+    source = ''
+    if item.get('source'):
+        source = f'<p class="journal-source">Kaynak: <a href="{e(item["source"][1])}" target="_blank" rel="noopener noreferrer">{e(item["source"][0])} ↗</a></p>'
+    related = [a for a in ARTICLES if a['slug'] != selected and a['category']==item['category']][:2]
+    body = f'''<article class="container journal-article"><header><a class="text-link" href="/icerik-rehberi">← İçerik Rehberi</a><span class="eyebrow">{e(item['topic'])}</span><h1>{e(item['title'])}</h1><p class="journal-lead">{e(item['summary'])}</p><div class="journal-meta"><span>Seysa Medya</span><time datetime="{item['date']}">{item['date_label']}</time><span>{minutes} dk okuma</span></div></header><img class="journal-hero" src="/assets/media/{e(item['image'])}.jpg" alt="" width="1400" height="700"><div class="journal-reading"><aside><span class="eyebrow">BU YAZIDA</span><nav aria-label="Yazı içindekiler">{toc}</nav></aside><div class="journal-prose">{sections}<div class="journal-takeaway"><span class="eyebrow">BİR SONRAKİ ADIM</span><p>{e(item['takeaway'])}</p></div>{source}</div></div></article><section class="container journal-related"><h2>Bir fikir daha.</h2><div class="journal-grid">{''.join(journal_card(a) for a in related)}</div></section><section class="container contact-callout"><h2>Bu fikirleri markanıza uyarlayalım.</h2>{button('Birlikte planlayalım','/iletisim')}</section>'''
+    return page(item['title'], body, path, item['summary'])

@@ -211,6 +211,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path=='/referanslar': body=views.references_page(refs)
             elif path=='/paketler': body=views.packages_page()
             elif path=='/hakkimizda': body=views.about_page()
+            elif path=='/icerik-rehberi' or path.startswith('/icerik-rehberi/'): body=views.journal_page(path)
             elif path=='/iletisim': body=views.contact_page(parse_qs(parsed.query).get('hizmet',[''])[0])
             elif path=='/robots.txt': return self.send('User-agent: *\nDisallow: /admin\n',content_type='text/plain; charset=utf-8')
             else: body=None

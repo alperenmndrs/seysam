@@ -49,7 +49,7 @@ for slug, title, description, scope, children in GROUPS:
         child = dict(path=child_path, title=child_title, description=child_desc, scope=[(s, '') for s in steps], children=[], parent=path)
         SERVICES[child_path] = child
         SERVICES[path]['children'].append(child)
-NAV = [('/', 'Ana Sayfa'), ('/hizmetler', 'Hizmetler'), ('/projeler', 'Projeler'), ('/referanslar', 'Referanslar'), ('/paketler', 'Paketler / Teklif Al'), ('/hakkimizda', 'Hakkımızda'), ('/iletisim', 'İletişim')]
+NAV = [('/', 'Ana Sayfa'), ('/hizmetler', 'Hizmetler'), ('/projeler', 'Projeler'), ('/referanslar', 'Referanslar'), ('/paketler', 'Paketler / Teklif Al'), ('/icerik-rehberi', 'İçerik Rehberi'), ('/hakkimizda', 'Hakkımızda'), ('/iletisim', 'İletişim')]
 PACKAGES = [
     ('Sosyal Medya', 'Düzenli içerik ve hesap yönetimi.', ['İçerik planlama', 'Görsel tasarım ve yayın', 'Hesap yönetimi ve raporlama']),
     ('Prodüksiyon', 'Çekim ve içerik üretimi.', ['Fotoğraf ve video çekimi', 'Reels ve reklam içerikleri', 'Kurgu ve teslim']),

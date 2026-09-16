@@ -18,11 +18,12 @@ sys.path.insert(0, str(ROOT))
 
 from seysa import storage, views
 from seysa.content import SERVICES
+from seysa.journal import ARTICLES
 
 DOCS_DIR = ROOT / 'docs'
 
 
-def rewrite_html(html, depth):
+def rewrite_html(html, depth, root_prefix=None):
     """
     HTML içindeki mutlak yolları (örn. /style.css, /hizmetler, /assets/...)
     bulunulan sayfanın derinliğine göre göreceli (relative) yollara çevirir.
@@ -45,7 +46,7 @@ def rewrite_html(html, depth):
         query = match.group(2) or ''
         fragment = match.group(3) or ''
 
-        prefix = '../' * depth
+        prefix = root_prefix if root_prefix is not None else '../' * depth
         if path_part == '/':
             new_url = (prefix + 'index.html' if prefix else 'index.html') + query + fragment
         else:
@@ -132,6 +133,10 @@ def export():
         pages[path] = (views.services_page(path), depth)
 
     # Proje detay sayfaları
+    for suffix in ['', '/rehberler', '/sektor-haberleri'] + ['/'+a['slug'] for a in ARTICLES]:
+        path = '/icerik-rehberi'+suffix
+        pages[path] = (views.journal_page(path), len(path.strip('/').split('/')))
+
     for p in projects:
         path = f'/projeler/{p["id"]}'
         depth = 2
@@ -150,7 +155,10 @@ def export():
         target_file.write_text(converted, encoding='utf-8')
 
     # 5. 404.html sayfası oluştur (GitHub Pages standart)
-    err_404 = rewrite_html(views.error_page(404, 'Aradığınız sayfa bulunamadı.'), 0)
+    # Error pages can be served at arbitrary depths; assets must resolve from the site root.
+    site_prefix = '/' + os.environ.get('SITE_BASE_PATH', 'seysam').strip('/') + '/'
+    site_prefix = site_prefix.replace('//', '/')
+    err_404 = rewrite_html(views.error_page(404, 'Aradığınız sayfa bulunamadı.'), 0, root_prefix=site_prefix)
     (DOCS_DIR / '404.html').write_text(err_404, encoding='utf-8')
 
     print('✅ Derleme başarıyla tamamlandı!')
