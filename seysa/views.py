@@ -39,7 +39,7 @@ def page(title, body, path='/', description='', csrf='', admin=False, authentica
     if not admin:
         settings = storage.site_settings()
         socials = ''.join(f'<a href="{e(settings[k])}" target="_blank" rel="noopener noreferrer">{social_icon(k)}{label} ↗</a>' if settings.get(k) else f'<span class="social-pending">{social_icon(k)}{label}</span>' for k,label in [('instagram','Instagram'),('linkedin','LinkedIn')])
-        footer = footer.replace('<div class="container footer-bottom">', '<div class="container footer-contact"><address>'+e(settings.get('address',''))+'</address><div class="footer-socials">'+socials+'</div></div><div class="container footer-bottom">')
+        footer = '<footer class="site-footer balanced-footer"><div class="container footer-grid"><div class="footer-brand"><a class="brand" href="/" aria-label="Seysa Medya">'+logo+'</a><p>Kreatif fikirler.<br>Güçlü görsel iletişim.</p><div class="footer-socials">'+socials+'</div></div><nav aria-label="Alt menü"><span class="eyebrow">KEŞFEDİN</span><a href="/hizmetler">Hizmetler</a><a href="/projeler">Projeler</a><a href="/referanslar">Referanslar</a><a href="/hakkimizda">Hakkımızda</a></nav><div class="footer-reach"><span class="eyebrow">BİZE ULAŞIN</span><a href="mailto:info@seysamedya.com">info@seysamedya.com</a><address>'+e(settings.get('address',''))+'</address><a class="text-link" href="/iletisim">Projenizi konuşalım ↗</a></div></div><div class="container footer-bottom"><span>© 2026 Seysa Medya</span><span>İstanbul</span></div></footer>'
         if settings.get('whatsapp'):
             footer += '<a class="whatsapp-link" href="https://wa.me/'+e(settings['whatsapp'])+'" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp ile yazın">'+social_icon('whatsapp')+'<span>WhatsApp</span></a>'
     return f'''<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><meta name="description" content="{e(description or title)}"><title>{e(title)} — Seysa Medya</title><link rel="icon" href="/assets/seysa-logo.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v={css_version}">{creative_style}<script defer src="/main.js?v={css_version}"></script></head><body class="{'admin-body' if admin else ''}">{header}<main id="main">{body}</main>{footer}</body></html>'''
@@ -94,9 +94,9 @@ def logo_strip(refs):
 def project_cards(projects):
     if not projects: return '<p class="empty-state">Henüz yayınlanan proje yok.</p>'
     cards = ''
-    for p in projects:
+    for index,p in enumerate(projects):
         image = f'<img src="{e(p["image"])}" alt="{e(p["title"])}" width="680" height="460" loading="lazy">' if p['image'] else '<div class="project-no-image" aria-hidden="true">Seysa Medya</div>'
-        cards += f'<a class="project-card" href="/projeler/{p["id"]}">{image}<div><span class="meta">{e(p["company_name"] or p["service"])}</span><h2>{e(p["title"])}</h2><p>{e(p["summary"])}</p><span class="card-link">Projeyi incele ↗</span></div></a>'
+        cards += f'<a class="project-card portfolio-card" data-project-service="{e(p["service"])}" href="/projeler/{p["id"]}"><div class="portfolio-cover">{image}<span class="portfolio-index">{index+1:02d}</span><span class="portfolio-open" aria-hidden="true">↗</span></div><div class="portfolio-caption"><span class="meta">{e(p["company_name"] or "Seysa Medya")} / {e(p["service"])}</span><h2>{e(p["title"])}</h2><p>{e(p["summary"])}</p><span class="card-link">Projeyi keşfet ↗</span></div></a>'
     return '<div class="project-grid">'+cards+'</div>'
 
 
@@ -108,8 +108,8 @@ def home(projects, refs):
     reference_section = ''
     if refs:
         reference_title = 'Referanslar'
-        reference_section = '<section class="reference-band compact-references" aria-label="Referanslar"><div class="container"><h2>'+reference_title+'</h2></div>'+logo_strip(refs)+ ('<div class="container"><p class="sample-note">Örnek olarak eklenen logolar müşteri ilişkisi belirtmez.</p></div>' if any(r.get('is_sample') for r in refs) else '')+'</section>'
-    work = '<section class="container section"><div class="section-heading"><h2>Projeler</h2><a class="text-link" href="/projeler">Tüm projeler ↗</a></div>'+project_cards(projects[:3])+'</section>' if projects else ''
+        reference_section = '<section class="home-references" aria-label="Referanslar"><div class="container"><h2>'+reference_title+'</h2></div><div class="reference-band compact-references">'+logo_strip(refs)+'</div></section>'
+    work = '<section class="container section"><div class="section-heading"><h2>Projeler</h2></div>'+project_cards(projects[:3])+'</section>' if projects else ''
     cta = '<section class="creative-cta"><div class="container"><span class="eyebrow">SIRADAKİ İYİ FİKİR SİZİN OLSUN.</span><a href="/iletisim"><h2>Birlikte<br>üretelim.</h2><span class="cta-arrow" aria-hidden="true">↗</span></a><p>Projenizi konuşalım. İlk adımı birlikte atalım.</p></div></section>'
     return page('Ana Sayfa', hero+services+reference_section+work+cta, description='Seysa Medya: sosyal medya yönetimi, prodüksiyon, marka tasarımı, web ve dijital pazarlama hizmetleri.')
 
@@ -138,11 +138,7 @@ def services_page(path):
 
 
 def references_page(refs):
-    body = intro('Referanslar')
-    if any(r.get('is_sample') for r in refs):
-        body += '<div class="container"><p class="sample-note">Örnek olarak eklenen logolar müşteri ilişkisi belirtmez.</p></div>'
-    if any(r['logo'] for r in refs):
-        body += '<div class="container strip-actions"><button class="plain-button motion-toggle" aria-pressed="false" hidden>Hareketi durdur</button></div>'+logo_strip(refs)
+    body = '<section class="container editorial-intro reference-intro"><span class="eyebrow">SEYSA MEDYA</span><h1>REFERANSLAR<span>.</span></h1><p>Markalar, kurumlar ve birlikte üretilen işler.</p></section>'
     cards = ''
     for r in refs:
         logo = f'<img src="{e(r["logo"])}" alt="{e(r["name"])} logosu" width="200" height="100" loading="lazy">' if r['logo'] else ''
@@ -157,13 +153,20 @@ def references_page(refs):
 
 def projects_page(projects, project_id=None):
     if project_id is None:
-        return page('Projeler',intro('Projeler')+'<section class="container section-after-intro">'+project_cards(projects)+'</section>','/projeler')
+        filters = ''.join('<button type="button" data-project-filter="'+e(service)+'" aria-pressed="false">'+e(service)+'</button>' for service in dict.fromkeys(p['service'] for p in projects if p['service']))
+        body='<section class="container editorial-intro portfolio-intro"><span class="eyebrow">SEYSA MEDYA / PORTFÖY</span><h1>FİKİRLERİN<br><em>GÖRÜNÜR HALİ.</em></h1><div class="portfolio-intro-bottom"><p>Çekimden tasarıma, markadan dijitale.<br>Projelerin hikâyelerine ve detaylarına yakından bakın.</p><span>'+str(len(projects))+' proje</span></div></section>'
+        if filters: body+='<div class="container portfolio-filters" aria-label="Proje kategorileri"><button type="button" data-project-filter="" aria-pressed="true">Tüm çalışmalar</button>'+filters+'</div>'
+        body+='<section class="container section-after-intro portfolio-list">'+project_cards(projects)+'</section>'
+        return page('Projeler',body,'/projeler')
     p = next((p for p in projects if p['id']==project_id),None)
     if not p: return None
-    body = intro(p['title'],p['summary'],('/projeler','Projeler'))
+    body = '<section class="container case-intro"><a class="text-link" href="/projeler">← Projelere dön</a><span class="eyebrow">'+e(p['service'] or 'PROJE DETAYI')+'</span><h1>'+e(p['title'])+'</h1><p>'+e(p['summary'])+'</p></section>'
     image = f'<img class="project-cover" src="{e(p["image"])}" alt="{e(p["title"])}" width="1240" height="800">' if p['image'] else ''
     meta = ''.join(f'<div><dt>{label}</dt><dd>{e(value)}</dd></div>' for label,value in [('Şirket',p['company_name']),('Hizmet',p['service'])] if value)
-    body += f'<article class="container section-after-intro">{image}<div class="project-detail"><div class="prose">'+''.join('<p>'+e(part)+'</p>' for part in p['body'].split('\n') if part.strip())+f'</div><dl>{meta}</dl></div></article>'
+    body += f'<article class="container section-after-intro case-study">{image}<div class="project-detail"><div class="prose"><span class="eyebrow">PROJE HAKKINDA</span><h2>Çalışmaya<br>yakından bakış.</h2>'+''.join('<p>'+e(part)+'</p>' for part in p['body'].split('\n') if part.strip())+f'</div><dl>{meta}</dl></div>'
+    for number,key,title in [('01','brief','İhtiyaç & hedef'),('02','process','Yaklaşım & üretim'),('03','result','Sonuç & teslimler')]:
+        if p.get(key): body+='<section class="case-chapter"><span>'+number+'</span><h2>'+title+'</h2><div>'+''.join('<p>'+e(part)+'</p>' for part in p[key].split('\n') if part.strip())+'</div></section>'
+    body+='</article>'
     if p.get('gallery'):
         entries = ''
         for item in p['gallery']:
@@ -172,8 +175,11 @@ def projects_page(projects, project_id=None):
                 content = f'<button class="gallery-open" type="button" data-full-image="{e(item["url"])}" data-caption="{e(caption)}" aria-label="{e(caption)} — büyüt"><img src="{e(item["url"])}" alt="{e(caption)}" loading="lazy"><span aria-hidden="true">↗</span></button>'
             else:
                 content = f'<iframe src="{e(item["url"])}" title="{e(caption)}" loading="lazy" allow="fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
-            entries += '<figure>'+content+'<figcaption>'+e(caption)+'</figcaption></figure>'
+            entries += '<figure class="gallery-'+item['kind']+'">'+content+'<figcaption>'+e(caption)+'</figcaption></figure>'
         body += '<section class="container project-gallery section-after-intro"><div class="section-heading"><h2>Projeden kareler</h2></div><div class="gallery-grid">'+entries+'</div></section><dialog id="image-viewer" aria-label="Proje görseli"><button type="button" class="viewer-close" aria-label="Görseli kapat">Kapat ×</button><img alt=""><p></p></dialog>'
+    other = next((item for item in projects[projects.index(p)+1:]+projects[:projects.index(p)] if item['id']!=p['id']),None)
+    if other: body+='<section class="container next-project"><span class="eyebrow">SIRADAKİ PROJE</span><a href="/projeler/'+str(other['id'])+'"><h2>'+e(other['title'])+'</h2><span aria-hidden="true">↗</span></a></section>'
+    body+='<section class="container contact-callout"><h2>Sizin projenizi de konuşalım.</h2>'+button('Birlikte üretelim','/iletisim')+'</section>'
     return page(p['title'],body,'/projeler/'+str(p['id']),p['summary'])
 
 
@@ -272,7 +278,7 @@ def record_form(kind,csrf,companies,record=None,error=''):
         fields=field('Şirket / kurum adı','name',True)+field('Sektör','sector')+field('Web sitesi (isteğe bağlı)','website',typ='url')+upload('Logo','logo')
     elif kind=='projeler':
         options='<option value="">Hizmet seçin</option>'+''.join(f'<option {"selected" if s["title"]==record.get("service") else ""}>{e(s["title"])}</option>' for s in SERVICES.values())
-        fields=field('Proje adı','title',True)+company_select()+f'<label>Hizmet<select name="service">{options}</select></label>'+field('Kısa açıklama','summary',limit=400,textarea=True)+field('Proje açıklaması','body',limit=12000,textarea=True)+upload('Proje görseli','image')
+        fields=field('Proje adı','title',True)+company_select()+f'<label>Hizmet<select name="service">{options}</select></label>'+field('Kısa açıklama','summary',limit=400,textarea=True)+field('Proje açıklaması','body',limit=12000,textarea=True)+upload('Proje görseli','image')+field('İhtiyaç ve hedef (isteğe bağlı)','brief',limit=8000,textarea=True)+field('Yaklaşım ve üretim süreci (isteğe bağlı)','process',limit=8000,textarea=True)+field('Sonuç ve teslimler (isteğe bağlı)','result',limit=8000,textarea=True)
     else:
         fields=company_select(True)+'<p class="form-note">Logo, şirket kaydından alınır. Logoyu değiştirmek için şirketi düzenleyin.</p>'+field('Referans yorumu (isteğe bağlı)','quote',limit=2000,textarea=True)+field('Yorum sahibi / unvanı (isteğe bağlı)','author')
     if kind=='referanslar':

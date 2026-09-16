@@ -35,6 +35,9 @@ def initialize():
         CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         ''')
         db.execute('PRAGMA optimize')
+        columns={row['name'] for row in db.execute('PRAGMA table_info(projects)')}
+        for name in ('brief','process','result'):
+            if name not in columns: db.execute('ALTER TABLE projects ADD COLUMN '+name+" TEXT NOT NULL DEFAULT ''")
         for key,value in {'whatsapp':'905888888888', 'address':'Prestige 24 Plaza N:10 Bahçelievler/İstanbul', 'instagram':'https://www.instagram.com/seysamedya/', 'linkedin':'https://www.linkedin.com/company/seysamedya/'}.items():
             db.execute('INSERT OR IGNORE INTO app_meta(key,value) VALUES(?,?)',('site_'+key,value))
     if DB.exists(): os.chmod(DB, 0o600)

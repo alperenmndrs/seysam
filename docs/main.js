@@ -66,30 +66,20 @@
   if (document.body.classList.contains('admin-body')) return;
 
   const pageContent = document.getElementById('main');
-  let leavingPage = false;
   let pageAnimation;
-  const restorePage = () => {
-    leavingPage = false;
-    pageAnimation?.cancel();
-  };
-  window.addEventListener('pageshow', restorePage);
+  window.addEventListener('pageshow', () => pageAnimation?.cancel());
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden || motion.matches || leavingPage || !pageContent?.animate) return;
+    if (document.hidden || motion.matches || !pageContent?.animate) return;
     pageAnimation?.cancel();
-    pageAnimation = pageContent.animate([{opacity: .7}, {opacity: 1}], {duration: 200, easing: 'ease-out'});
+    pageAnimation = pageContent.animate([{opacity: .8, translate: '0 6px'}, {opacity: 1, translate: '0 0'}], {duration: 260, easing: 'ease-out'});
   });
-  document.addEventListener('click', event => {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || motion.matches || !pageContent?.animate) return;
-    const link = event.target.closest('a[href]');
-    if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
-    const url = new URL(link.href, location.href);
-    if (url.origin !== location.origin || url.pathname.startsWith('/admin') || (url.pathname === location.pathname && url.search === location.search)) return;
-    event.preventDefault();
-    if (leavingPage) return;
-    leavingPage = true;
-    pageAnimation?.cancel();
-    pageAnimation = pageContent.animate([{opacity: 1}, {opacity: .35}], {duration: 140, easing: 'ease-out'});
-    pageAnimation.finished.catch(() => {}).then(() => location.assign(url.href));
+  document.querySelectorAll('[data-project-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('[data-project-filter]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+      document.querySelectorAll('[data-project-service]').forEach(card => {
+        card.hidden = !!button.dataset.projectFilter && card.dataset.projectService !== button.dataset.projectFilter;
+      });
+    });
   });
 
   const viewer = document.getElementById('image-viewer');

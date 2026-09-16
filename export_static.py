@@ -59,7 +59,7 @@ def rewrite_html(html, depth):
 
         return f'{attr}={quote}{new_url}{quote}'
 
-    return re.sub(r'(\b(?:href|src|action))=([\"\'])([^\"\']+)\2', repl, html)
+    return re.sub(r'(\b(?:href|src|action|data-full-image))=([\"\'])([^\"\']+)\2', repl, html)
 
 
 def build_admin_preview_page():
@@ -104,10 +104,11 @@ def export():
     # Yüklenen görselleri kopyala (.data/uploads -> docs/uploads)
     uploads_target = DOCS_DIR / 'uploads'
     uploads_target.mkdir(parents=True, exist_ok=True)
-    if storage.UPLOADS.exists():
-        for item in storage.UPLOADS.iterdir():
-            if item.is_file():
-                shutil.copy2(item, uploads_target / item.name)
+    published_media = {p['image'] for p in projects} | {r['logo'] for r in refs} | {m['url'] for p in projects for m in p.get('gallery',[]) if m['kind']=='image'}
+    for url in published_media:
+        if not url.startswith('/uploads/'): continue
+        item=storage.UPLOADS / Path(url).name
+        if item.is_file(): shutil.copy2(item, uploads_target / item.name)
 
     # GitHub Pages için .nojekyll ve robots.txt oluştur
     (DOCS_DIR / '.nojekyll').write_text('', encoding='utf-8')

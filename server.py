@@ -383,6 +383,7 @@ class Handler(BaseHTTPRequestHandler):
                     service=text('service',200)
                     if service and service not in [s['title'] for s in SERVICES.values()]: raise ValueError('Geçerli bir hizmet seçin.')
                     values.update(title=text('title',200,True),summary=text('summary',400),body=text('body',12000),service=service,image=current.get('image',''))
+                    for key in ('brief','process','result'): values[key]=text(key,8000) if key in fields else current.get(key,'')
                 else: values.update(quote=text('quote',2000),author=text('author',200),is_sample=1 if fields.get('is_sample')=='1' else 0)
             media_key='logo' if kind=='sirketler' else 'image' if kind=='projeler' else None
             if media_key:

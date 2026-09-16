@@ -102,7 +102,7 @@ class WebsiteTests(unittest.TestCase):
         self.assertEqual(other.request('/projeler/'+str(p['id']))[0],200)
     def test_gallery_and_site_settings(self):
         csrf=self.setup_admin(); visitor=Client(self.client.port)
-        self.assertEqual(self.client.request('/admin/projeler/yeni',{'csrf':csrf,'title':'Galeri testi'})[0],303)
+        self.assertEqual(self.client.request('/admin/projeler/yeni',{'csrf':csrf,'title':'Galeri testi','brief':'Hedef <script>','process':'Üretim planı','result':'Teslim edilen dosyalar'})[0],303)
         with storage.connect() as db: project_id=db.execute('SELECT id FROM projects').fetchone()[0]
         gallery=f'/admin/projeler/{project_id}/galeri'
         self.assertEqual(self.client.request(gallery,{'csrf':csrf,'position':'10'},upload=[PNG,PNG])[0],303)
@@ -125,6 +125,9 @@ class WebsiteTests(unittest.TestCase):
         status,body,headers=visitor.request(f'/projeler/{project_id}')
         self.assertEqual(status,200)
         self.assertIn(b'id="image-viewer"',body)
+        self.assertIn(b'Hedef &lt;script&gt;',body)
+        self.assertIn('Üretim planı'.encode(),body)
+        self.assertIn(b'Teslim edilen dosyalar',body)
         self.assertIn(b'https://www.youtube-nocookie.com/embed/abcdefghijk',body)
         self.assertLess(body.index(b'<iframe'),body.index(b'class="gallery-open"'))
         self.assertIn('frame-src',headers['Content-Security-Policy'])
