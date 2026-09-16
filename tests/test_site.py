@@ -11,6 +11,7 @@ from pathlib import Path
 import server
 from seysa import storage
 from seysa.content import SERVICES, NAV
+from seysa.journal import ARTICLES
 
 PNG=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
 
@@ -68,6 +69,28 @@ class WebsiteTests(unittest.TestCase):
             self.assertEqual(self.client.request(path)[0],404)
         for path in ['/style.css','/main.js','/assets/seysa-logo.svg']:
             self.assertEqual(self.client.request(path)[0],200)
+
+    def test_editorial_categories_articles_and_missing_pages(self):
+        for item in ARTICLES:
+            status,data,_=self.client.request('/icerik-rehberi/'+item['slug'])
+            self.assertEqual(status,200)
+            self.assertIn(item['title'],data.decode())
+            self.assertEqual(data.count(b'<h1'),1)
+        for category in ['rehberler','sektor-haberleri']:
+            status,data,_=self.client.request('/icerik-rehberi/'+category)
+            self.assertEqual(status,200)
+            html=data.decode()
+            for item in ARTICLES:
+                self.assertEqual(('href="/icerik-rehberi/'+item['slug']+'"') in html,item['category']==category)
+        for path in ['/olmayan/bir/sayfa','/icerik-rehberi/yok','/icerik-rehberi/yok/rehberler']:
+            status,data,_=self.client.request(path)
+            self.assertEqual(status,404)
+            self.assertIn('kadrajdan çıkmış',data.decode())
+        home=self.client.request('/')[1].decode()
+        for symbol in ['✳','↗','☰']:
+            self.assertNotIn(symbol,home)
+        self.assertIn('/assets/icons.svg#spark',home)
+        self.assertEqual(self.client.request('/assets/icons.svg')[0],200)
     def test_crud_publication_uploads_persistence_and_deletion(self):
         csrf=self.setup_admin();other=Client(self.client.port)
         # Authenticated company and image upload; logo remains private until referenced publicly.

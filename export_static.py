@@ -76,7 +76,7 @@ def build_admin_preview_page():
             güvenlik gereği yerel Python ortamında (<code>python3 -B server.py</code>) ve SQLite veritabanı ile çalışır.
         </p>
         <div style="margin-top: 24px;">
-            <a class="button" href="../index.html">Ana Sayfaya Dön ↗</a>
+            <a class="button" href="/">Ana Sayfaya Dön <svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-up-right"/></svg></a>
         </div>
     </section>
     '''

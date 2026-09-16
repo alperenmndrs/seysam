@@ -1,4 +1,6 @@
 /* Public creative direction. Structural and admin styles remain in style.css. */
+.orbit-spark .ui-icon, .method-mark .ui-icon { display: block; }
+.missing-lens .ui-icon { width: 70%; height: 70%; }
 body:not(.admin-body) { background: radial-gradient(ellipse 70vw 650px at 100% 900px, #f8a56b17, transparent), radial-gradient(ellipse 60vw 700px at 0 1900px, #ed4b1610, transparent), #f7f6f2; --ink: #20211f; --orange: #ed4b16; }
 body:not(.admin-body) .site-header { background: #f7f6f2f5; box-shadow: none; border-color: #20211f14; }
 .header-inner { min-height: 90px; }
@@ -148,7 +150,7 @@ body:not(.admin-body) .button { border-radius: 50px; background: #ea4814; border
 .package-content h3 { margin-top: 25px; font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; }
 .package-content ul { list-style: none; padding: 0; margin-block: 18px 24px; }
 .package-content li { padding-left: 23px; position: relative; font-size: .89rem; }
-.package-content li::before { content: '✓'; position: absolute; left: 0; color: #df4b1e; }
+.package-content li::before { content: ''; position: absolute; left: 1px; top: .4em; width: 6px; height: 11px; border: solid #df4b1e; border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .package-content .package-note { margin: auto 0 25px; padding-top: 18px; border-top: 1px solid #e7e7dd; font-size: .78rem; }
 .package-content .button { font-size: .82rem; padding-inline: 18px; }
 .package-explainer { margin-top: 65px; }
@@ -193,11 +195,11 @@ body:not(.admin-body) .button { border-radius: 50px; background: #ea4814; border
 .about-values article p { margin-top: 12px; }
 @media (max-width: 1000px) {
   .menu-toggle { border: 0; border-radius: 6px; background: #e94b19; color: white; padding: 12px 17px; display: flex; align-items: center; gap: 12px; }
-  .menu-toggle::after { content: '☰'; font-size: 1.1rem; line-height: 1; }
-  .menu-toggle[aria-expanded=true]::after { content: '×'; font-size: 1.5rem; }
+  .menu-toggle::after { content: ''; width: 18px; height: 14px; background: linear-gradient(currentColor,currentColor) top/100% 2px no-repeat, linear-gradient(currentColor,currentColor) center/100% 2px no-repeat, linear-gradient(currentColor,currentColor) bottom/100% 2px no-repeat; }
+  .menu-toggle[aria-expanded=true]::after { background: linear-gradient(45deg,transparent 45%,currentColor 46% 54%,transparent 55%),linear-gradient(-45deg,transparent 45%,currentColor 46% 54%,transparent 55%); height: 18px; }
   .site-header nav { position: fixed; top: 90px; left: 0; right: 0; bottom: 0; background: #f7f6f2; padding: 25px max(30px,calc((100vw - 850px)/2)); display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; overflow-y: auto; z-index: 30; }
   .site-header nav a { display: flex; align-items: center; justify-content: space-between; font-size: clamp(1.4rem,4vw,2rem); font-weight: 600; padding: 15px 0; border-bottom: 1px solid #deded3; white-space: normal; letter-spacing: -.03em; }
-  .site-header nav a::after { content: '↗'; position: static; width: auto; height: auto; transform: none; background: none; font-size: 1.2rem; }
+  .site-header nav a::after { content: ''; position: static; width: 10px; height: 10px; border: solid currentColor; border-width: 2px 2px 0 0; transform: none; background: none; flex-shrink: 0; margin-right: 6px; }
   .site-header nav a:last-child { margin-top: 20px; padding: 17px 22px; border-radius: 5px; background: #e94b19; }
   body.menu-open { overflow: hidden; }
   .contact-studio { gap: 30px; }
