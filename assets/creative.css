@@ -164,8 +164,29 @@ body:not(.admin-body) .button { border-radius: 50px; background: #ea4814; border
 .about-story h2 { font-size: clamp(2.5rem,4vw,4rem); line-height: 1.1; margin-block: 25px; }
 .about-story em { font-style: normal; color: #df4b1e; }
 .about-story p { margin-bottom: 20px; }
-.about-method { padding-block: 65px 40px; background: #eaece4; }
-.about-method h2 { font-size: clamp(2.5rem,4vw,4rem); margin-top: 20px; }
+.about-method { padding-block: 80px; background: radial-gradient(ellipse at 0 80%, #f8a56b24, transparent 60%), #f1ece5; border-block: 1px solid #e5ddd3; }
+.method-layout { display: grid; grid-template-columns: .95fr 1.05fr; gap: 70px; align-items: start; }
+.method-heading { position: sticky; top: 135px; }
+.about-method h2 { font-size: clamp(2.8rem,4.6vw,4.8rem); margin-block: 24px; }
+.method-heading h2 em { color: #e74b19; font-style: normal; }
+.method-heading p { max-width: 310px; color: #656059; }
+.method-mark { display: block; width: fit-content; margin-top: 36px; color: #e74b19; font-size: 100px; line-height: 1; }
+.method-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.method-steps li { display: grid; grid-template-columns: 66px minmax(0,1fr); gap: 24px; padding: 32px; background: #fffdf9; border: 1px solid #e4dbd1; border-radius: 22px; transition: border-color 350ms, box-shadow 350ms, transform 350ms; }
+.method-number { font-family: Impact, 'Arial Narrow', sans-serif; font-size: 3.7rem; line-height: 1; color: #e74b19; letter-spacing: -.03em; }
+.method-steps .eyebrow { color: #766454; font-size: .62rem; letter-spacing: .12em; }
+.method-steps h3 { font-size: clamp(2.1rem,3.2vw,3rem); margin-block: 10px 14px; }
+.method-steps p { font-size: .92rem; line-height: 1.7; color: #5f5b55; }
+.method-delivery { display: block; border-top: 1px solid #eadfd2; margin-top: 22px; padding-top: 14px; font-size: .68rem; color: #9a461f; }
+@media(hover:hover) and (prefers-reduced-motion:no-preference) {
+  .method-steps li:hover { transform: translateY(-3px); border-color: #ed8e65; box-shadow: 0 12px 30px #7d3f1610; }
+}
+.about-page h1, .about-page h2, .about-page h3 { font-family: Impact, 'Arial Narrow', 'Helvetica Neue', sans-serif; font-stretch: condensed; font-weight: 900; text-transform: uppercase; letter-spacing: -.025em; line-height: 1.03; }
+.about-page .page-intro h1 { font-size: clamp(3.6rem,9.2vw,8.6rem); letter-spacing: -.035em; }
+.about-page .about-story h2 { font-size: clamp(3rem,4.8vw,4.6rem); }
+.about-page .about-values h2 { font-size: clamp(2.7rem,4vw,3.8rem); }
+.about-page .about-values h3 { font-size: 1.7rem; }
+.about-page .contact-callout h2 { font-size: clamp(2rem,3vw,3rem); }
 .about-values { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; }
 .about-values h2 { margin-top: 25px; font-size: 2.6rem; }
 .about-values article { border-bottom: 1px solid #ddd; padding-block: 0 25px; margin-bottom: 25px; }
@@ -193,7 +214,14 @@ body:not(.admin-body) .button { border-radius: 50px; background: #ea4814; border
   .contact-guide { margin-bottom: 8px; }
   .process-grid { grid-template-columns: 1fr; gap: 20px; }
   .about-photo { height: 370px; }
-  .about-method { padding-block: 45px 20px; }
+  .about-method { padding-block: 45px; }
+  .method-layout { grid-template-columns: 1fr; gap: 32px; }
+  .method-heading { position: static; }
+  .method-mark { display: none; }
+  .method-heading p { max-width: 430px; }
+  .method-steps li { padding: 25px; gap: 20px; grid-template-columns: 50px minmax(0,1fr); }
+  .method-number { font-size: 3rem; }
+  .about-page .page-intro h1 { font-size: clamp(3.2rem,12vw,5rem); }
   .about-values h2 { font-size: 2.3rem; }
   .logo-item { width: 195px; height: 115px; }
   .logo-item img { width: 180px; height: 100px; max-width: 180px; max-height: 100px; }
