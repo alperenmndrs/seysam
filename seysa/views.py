@@ -110,7 +110,7 @@ def home(projects, refs):
         reference_title = 'Referanslar'
         reference_section = '<section class="home-references" aria-label="Referanslar"><div class="container"><h2>'+reference_title+'</h2></div><div class="reference-band compact-references">'+logo_strip(refs)+'</div></section>'
     work = '<section class="container section"><div class="section-heading"><h2>Projeler</h2></div>'+project_cards(projects[:3])+'</section>' if projects else ''
-    cta = '<section class="creative-cta"><div class="container"><span class="eyebrow">SIRADAKİ İYİ FİKİR SİZİN OLSUN.</span><a href="/iletisim"><h2>Birlikte<br>üretelim.</h2><span class="cta-arrow" aria-hidden="true">↗</span></a><p>Projenizi konuşalım. İlk adımı birlikte atalım.</p></div></section>'
+    cta = '<section class="creative-cta"><div class="container"><span class="eyebrow">SIRADAKİ İYİ FİKİR SİZİN OLSUN.</span><a href="/iletisim"><h2>Birlikte<br>üretelim.</h2><span class="creative-orbit" aria-hidden="true"><span class="orbit-ring"></span><span class="orbit-ring"></span><span class="orbit-ring"></span><span class="orbit-spark">✳</span><span class="orbit-label">FİKRİNİ PAYLAŞ</span></span></a><p>Projenizi konuşalım. İlk adımı birlikte atalım.</p></div></section>'
     return page('Ana Sayfa', hero+services+reference_section+work+cta, description='Seysa Medya: sosyal medya yönetimi, prodüksiyon, marka tasarımı, web ve dijital pazarlama hizmetleri.')
 
 
@@ -123,7 +123,7 @@ def services_page(path):
             links = ''.join(f'<a href="{c["path"]}">{e(c["title"])} <span aria-hidden="true">↗</span></a>' for c in s['children'])
             body += f'<article class="service-directory visual-directory"><div class="directory-cover">{service_image(s["path"])}<div>{service_icon(s["path"])}<h2><a href="{s["path"]}">{e(s["title"])}</a></h2><p>{e(s["description"])}</p><a class="text-link" href="{s["path"]}">Hizmeti inceleyin ↗</a></div></div><div class="subservice-links">{links or "<p>İçerik planlama, tasarım, yayın ve topluluk yönetimi.</p>"}</div></article>'
         body += '</section>'
-        return page('Hizmetler', body, path)
+        return page('Hizmetler', '<div class="services-page">'+body+'</div>', path)
     s = SERVICES[path]
     parent = ('/hizmetler','Hizmetler') if s['parent']=='/hizmetler' else (s['parent'], SERVICES[s['parent']]['title'])
     body = intro(s['title'],s['description'],parent)
@@ -134,7 +134,7 @@ def services_page(path):
         body += '<section class="container detail-layout section-after-intro"><div><h2 class="scope-title">Hizmet kapsamı</h2><ul class="scope-list">'+steps+'</ul></div><aside class="service-aside"><h2>Teklif alın</h2><p>İhtiyacınızı paylaşın; kapsamı ve teslim takvimini birlikte belirleyelim.</p>'+button('Bize yazın','/iletisim?hizmet='+quote(s['title']))+'</aside></section>'
     if s['children']:
         body += '<section class="container contact-callout"><h2>'+e(s['title'])+' için teklif alın.</h2>'+button('Bize yazın','/iletisim?hizmet='+quote(s['title']))+'</section>'
-    return page(s['title'],body,path,s['description'])
+    return page(s['title'],'<div class="services-page">'+body+'</div>',path,s['description'])
 
 
 def references_page(refs):

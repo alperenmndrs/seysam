@@ -1,5 +1,5 @@
 /* Public creative direction. Structural and admin styles remain in style.css. */
-body:not(.admin-body) { background: #f7f6f2; --ink: #20211f; --orange: #ed4b16; }
+body:not(.admin-body) { background: radial-gradient(ellipse 70vw 650px at 100% 900px, #f8a56b17, transparent), radial-gradient(ellipse 60vw 700px at 0 1900px, #ed4b1610, transparent), #f7f6f2; --ink: #20211f; --orange: #ed4b16; }
 body:not(.admin-body) .site-header { background: #f7f6f2f5; box-shadow: none; border-color: #20211f14; }
 .header-inner { min-height: 90px; }
 .brand img { width: 145px; height: 55px; }
@@ -93,8 +93,18 @@ body:not(.admin-body) .button { border-radius: 50px; background: #ea4814; border
 .creative-cta { background: #ed4b19; color: #fff8ee; padding-block: 85px; position: relative; overflow: hidden; }
 .creative-cta a { display: flex; align-items: center; justify-content: space-between; margin-block: 24px 35px; color: inherit; }
 .creative-cta h2 { font-size: clamp(4rem,9vw,8.5rem); line-height: .96; letter-spacing: -.07em; }
-.cta-arrow { width: 160px; height: 160px; border: 1px solid #fff7; border-radius: 50%; display: grid; place-items: center; font-size: 6rem; transition: transform 600ms var(--ease-out), background 600ms; }
-.creative-cta a:hover .cta-arrow { transform: rotate(45deg); background: #fff2; }
+.creative-cta::before { content: ''; position: absolute; inset: -40%; pointer-events: none; background: radial-gradient(ellipse at 72% 40%, #ffc48e66, transparent 33%), radial-gradient(ellipse at 20% 85%, #aa25184d, transparent 44%); animation: cta-light 14s ease-in-out infinite alternate; }
+.creative-cta::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(#fff1 1px, transparent 1px), linear-gradient(90deg, #fff1 1px, transparent 1px); background-size: 80px 80px; mask-image: linear-gradient(90deg, transparent 30%, #000); }
+.creative-cta .container { position: relative; z-index: 1; }
+.creative-orbit { position: relative; width: clamp(180px,26vw,310px); aspect-ratio: 1; flex-shrink: 0; display: grid; place-items: center; transition: transform 700ms var(--ease-out); }
+.orbit-ring { position: absolute; inset: 6%; border: 1px solid #fff9; border-radius: 50%; box-shadow: inset 0 0 24px #ffe9cb18, 0 0 22px #fff1; animation: orbit-turn 18s linear infinite; }
+.orbit-ring:nth-child(2) { inset: 13%; animation-duration: 24s; animation-direction: reverse; transform: rotate(60deg) scaleX(.55); }
+.orbit-ring:nth-child(3) { inset: 0; border-style: dashed; border-color: #fff5; animation-duration: 45s; }
+.orbit-spark { font-size: clamp(5rem,10vw,9rem); line-height: 1; color: #ffe3ba; text-shadow: 0 0 35px #ffd9ac66; animation: lens-turn 32s linear infinite; }
+.orbit-label { position: absolute; bottom: -5px; font-size: .65rem; font-weight: 700; letter-spacing: .22em; }
+.creative-cta a:hover .creative-orbit, .creative-cta a:focus-visible .creative-orbit { transform: scale(1.08) rotate(-8deg); }
+@keyframes orbit-turn { from { transform: rotate(0deg) scaleX(.72); } to { transform: rotate(360deg) scaleX(.72); } }
+@keyframes cta-light { to { transform: translate3d(-5%,5%,0) rotate(8deg); } }
 .creative-cta p { color: #ffe5d9; font-size: .9rem; }
 .site-footer { background: #f7f6f2; }
 /* Reading never depends on an observer completing its animation. */
@@ -236,7 +246,9 @@ body:not(.admin-body) .button { border-radius: 50px; background: #ea4814; border
   .creative-cta { padding-block: 55px; }
   .creative-cta .eyebrow { font-size: .6rem; }
   .creative-cta h2 { font-size: 4rem; }
-  .cta-arrow { width: 75px; height: 75px; font-size: 3rem; flex-shrink: 0; }
+  .creative-orbit { width: 110px; }
+  .orbit-spark { font-size: 4rem; }
+  .orbit-label { font-size: .45rem; letter-spacing: .1em; bottom: -12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .lens-ring, .lens-core, .hero-shot { animation: none; }
@@ -410,6 +422,25 @@ body.menu-open .whatsapp-link { visibility: hidden; }
   .contact-studio { display: flex; flex-direction: column; }
   .contact-studio>form { order: -1; width: 100%; }
   .contact-studio>.contact-side { width: 100%; }
+}
+
+/* Compact service layouts share the portfolio's condensed typography. */
+.services-page > .container, .container.creative-services { width: min(1080px, calc(100% - 80px)); }
+.services-page .page-intro h1, .creative-services .section-heading h2 { font-family: Impact, 'Arial Narrow', 'Helvetica Neue', sans-serif; font-stretch: condensed; font-weight: 900; text-transform: uppercase; letter-spacing: -.035em; line-height: .98; }
+.services-page .page-intro h1 { font-size: clamp(3.2rem,7.5vw,7rem); max-width: 100%; overflow-wrap: break-word; }
+.creative-services .section-heading h2 { font-size: clamp(3rem,5.5vw,5.4rem); }
+.creative-services h2 em { color: #e74b19; }
+.services-page .visual-directory .directory-cover { min-height: 340px; }
+.services-page .visual-directory .subservice-links { padding: 22px 28px; }
+@media(max-width:700px) {
+  .services-page > .container, .container.creative-services { width: calc(100% - 40px); }
+  .services-page .page-intro h1 { font-size: clamp(2.7rem,11vw,4.4rem); }
+  .creative-cta h2 { font-size: clamp(2.8rem,12vw,4rem); }
+  .creative-cta a { gap: 12px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .creative-cta::before, .orbit-ring, .orbit-spark { animation: none; }
+  .creative-orbit { transition: none; }
 }
 
 /* Native cross-document transitions keep history, new tabs and links intact. */
