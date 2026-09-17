@@ -1,5 +1,22 @@
 (() => {
   'use strict';
+  const articleEditor = document.querySelector('.article-editor');
+  if (articleEditor) {
+    const title = articleEditor.elements.title;
+    const slug = articleEditor.elements.slug;
+    let automaticSlug = articleEditor.dataset.new === 'true' && !slug.value;
+    slug.addEventListener('input', () => { automaticSlug = false; });
+    title.addEventListener('input', () => {
+      if (automaticSlug) slug.value = title.value.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0,160).replace(/-$/, '');
+    });
+    const addHeading = articleEditor.querySelector('[data-add-heading]');
+    addHeading.hidden = false;
+    addHeading.addEventListener('click', () => {
+      const body = articleEditor.elements.body;
+      body.setRangeText('\n\n## Bölüm başlığı\n', body.selectionStart, body.selectionEnd, 'end');
+      body.focus();
+    });
+  }
   const nav = document.getElementById('main-nav');
   const toggle = document.getElementById('menu-toggle');
   if (nav && toggle) {
@@ -56,7 +73,7 @@
       const service = data.get('service') || 'Genel görüşme';
       const body = `Merhaba Seysa Medya,\n\nAdım: ${name}\nE-posta: ${data.get('email')}\nHizmet: ${service}\n\n${message}`;
       document.getElementById('draft-text').value = body;
-      document.getElementById('draft-link').href = 'mailto:info@seysamedya.com?subject=' + encodeURIComponent('Teklif talebi — ' + service) + '&body=' + encodeURIComponent(body);
+      document.getElementById('draft-link').href = document.querySelector('.contact-email').getAttribute('href') + '?subject=' + encodeURIComponent('Teklif talebi — ' + service) + '&body=' + encodeURIComponent(body);
       panel.hidden = false;
       status.textContent = 'Taslağınız hazır. Göndermek için e-posta uygulamanızda açın.';
     });

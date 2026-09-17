@@ -504,6 +504,9 @@ body.menu-open .whatsapp-link { visibility: hidden; }
 .journal-prose section { margin-bottom: 38px; scroll-margin-top: 120px; }
 .journal-prose h2 { font-size: 1.65rem; line-height: 1.25; letter-spacing: -.03em; margin-bottom: 16px; }
 .journal-prose p { line-height: 1.9; }
+.journal-prose section p { white-space: pre-line; }
+.preview-banner { padding: 18px 25px; text-align: center; background: #fce3d2; color: #843b1d; font-size: .85rem; }
+.preview-banner a { text-decoration: underline; margin-left: 15px; }
 .journal-takeaway { padding: 28px; border-left: 4px solid #e74b19; border-radius: 0 18px 18px 0; background: #f8e9db; }
 .journal-takeaway p { margin-top: 12px; }
 .journal-source { margin-top: 25px; font-size: .85rem; }

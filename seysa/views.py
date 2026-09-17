@@ -3,7 +3,7 @@ from urllib.parse import quote
 from pathlib import Path
 from . import storage
 from .content import GROUPS, SERVICES, NAV, PACKAGES
-from .journal import ARTICLES, ARTICLE_BY_SLUG
+from datetime import date
 
 
 def e(value):
@@ -36,11 +36,12 @@ def page(title, body, path='/', description='', csrf='', admin=False, authentica
         header = f'''<a class="skip-link" href="#main">İçeriğe geç</a><header class="site-header"><div class="container header-inner"><a class="brand" href="/" aria-label="Seysa Medya ana sayfa">{logo}</a><button id="menu-toggle" class="menu-toggle" aria-controls="main-nav" aria-expanded="false" hidden>Menü</button><nav id="main-nav" aria-label="Ana menü">{links}</nav></div></header>'''
         footer = f'''<footer class="site-footer"><div class="container footer-inner"><a class="brand" href="/">{logo}</a><nav aria-label="Alt menü"><a href="/hizmetler">Hizmetler</a><a href="/projeler">Projeler</a><a href="/referanslar">Referanslar</a><a href="/iletisim">İletişim</a></nav><a href="mailto:info@seysamedya.com">info@seysamedya.com</a></div><div class="container footer-bottom"><span>© 2026 Seysa Medya</span></div></footer>'''
     css_version = (Path(__file__).resolve().parent.parent / 'assets/creative.css').stat().st_mtime_ns
-    creative_style = '' if admin else f'<link rel="stylesheet" href="/assets/creative.css?v={css_version}">'
+    creative_style = f'<link rel="stylesheet" href="/assets/admin.css?v={(Path(__file__).resolve().parent.parent / "assets/admin.css").stat().st_mtime_ns}">' if admin else f'<link rel="stylesheet" href="/assets/creative.css?v={css_version}">'
     if not admin:
         settings = storage.site_settings()
         socials = ''.join(f'<a href="{e(settings[k])}" target="_blank" rel="noopener noreferrer">{social_icon(k)}{label} <svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-up-right"/></svg></a>' if settings.get(k) else f'<span class="social-pending">{social_icon(k)}{label}</span>' for k,label in [('instagram','Instagram'),('linkedin','LinkedIn')])
         footer = '<footer class="site-footer balanced-footer"><div class="container footer-grid"><div class="footer-brand"><a class="brand" href="/" aria-label="Seysa Medya">'+logo+'</a><p>Kreatif fikirler.<br>Güçlü görsel iletişim.</p><div class="footer-socials">'+socials+'</div></div><nav aria-label="Alt menü"><span class="eyebrow">KEŞFEDİN</span><a href="/hizmetler">Hizmetler</a><a href="/projeler">Projeler</a><a href="/referanslar">Referanslar</a><a href="/icerik-rehberi">İçerik Rehberi</a><a href="/hakkimizda">Hakkımızda</a></nav><div class="footer-reach"><span class="eyebrow">BİZE ULAŞIN</span><a href="mailto:info@seysamedya.com">info@seysamedya.com</a><address>'+e(settings.get('address',''))+'</address><a class="text-link" href="/iletisim">Projenizi konuşalım <svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-up-right"/></svg></a></div></div><div class="container footer-bottom"><span>© 2026 Seysa Medya</span><span>İstanbul</span></div></footer>'
+        footer=footer.replace('info@seysamedya.com',e(settings.get('email','info@seysamedya.com')))
         if settings.get('whatsapp'):
             footer += '<a class="whatsapp-link" href="https://wa.me/'+e(settings['whatsapp'])+'" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp ile yazın">'+social_icon('whatsapp')+'<span>WhatsApp</span></a>'
     return f'''<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><meta name="description" content="{e(description or title)}"><title>{e(title)} — Seysa Medya</title><link rel="icon" href="/assets/seysa-logo.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v={css_version}">{creative_style}<script defer src="/main.js?v={css_version}"></script></head><body class="{'admin-body' if admin else ''}">{header}<main id="main">{body}</main>{footer}</body></html>'''
@@ -216,10 +217,11 @@ def contact_page(selected=''):
     address=storage.site_settings().get('address','')
     if address:
         body=body.replace('<div class="contact-guide">','<div class="contact-address"><span class="eyebrow">ADRES</span><p>'+e(address)+'</p><a class="text-link" href="https://www.google.com/maps/search/?api=1&amp;query='+quote(address)+'" target="_blank" rel="noopener noreferrer">Haritada aç <svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-up-right"/></svg></a></div><div class="contact-guide">')
+    body=body.replace('info@seysamedya.com',e(storage.site_settings().get('email','info@seysamedya.com')))
     return page('İletişim',body,'/iletisim')
 
 
-ADMIN_TYPES = {'sirketler':('Şirketler','Şirket'), 'projeler':('Projeler','Proje'), 'referanslar':('Referanslar','Referans')}
+ADMIN_TYPES = {'sirketler':('Şirketler','Şirket'), 'projeler':('Projeler','Proje'), 'referanslar':('Referanslar','Referans'), 'icerikler':('İçerik Rehberi','İçerik')}
 
 def admin_shell(title,content,csrf,active='',notice=''):
     links = '<a href="/admin" '+('aria-current="page"' if not active else '')+'>Genel bakış</a>'
@@ -227,6 +229,7 @@ def admin_shell(title,content,csrf,active='',notice=''):
     links += '<a href="/admin/hesap" '+('aria-current="page"' if active=='hesap' else '')+'>Hesap</a>'
     links += '<a href="/admin/site-bilgileri" '+('aria-current="page"' if active=='site-bilgileri' else '')+'>Site bilgileri</a>'
     message = f'<div class="notice" role="status">{e(notice)}</div>' if notice else ''
+    content='<div class="admin-publish-note"><strong>Yayın bilgisi</strong><span>Kaydettiğiniz değişiklikler yerel siteye yansır. GitHub Pages paylaşım sitesi, yeniden yayınlandığında güncellenir.</span></div>'+content
     return page(title,f'<div class="admin-layout"><aside class="admin-sidebar"><nav aria-label="Yönetim menüsü">{links}</nav></aside><div class="admin-content">{message}{content}</div></div>',csrf=csrf,admin=True,authenticated=True)
 
 
@@ -237,38 +240,62 @@ def auth_page(csrf,setup=False,error='',username=''):
 
 
 def dashboard(csrf,counts):
-    cards=''.join(f'<a class="stat-card" href="/admin/{key}"><span>{title[0]}</span><strong>{counts[key]}</strong></a>' for key,title in ADMIN_TYPES.items())
-    content='<h1>Genel bakış</h1><div class="stat-grid">'+cards+'</div><section class="admin-help"><h2>İçerik ekleme</h2><ol><li>Şirketi oluşturun ve logosunu yükleyin.</li><li>Projeyi veya referansı ilgili şirkete bağlayın.</li><li>Hazır olduğunda “Sitede yayınla” seçeneğini işaretleyin.</li></ol><p>Yayınladığınız referansların logoları ana sayfada ve referanslar sayfasında gösterilir.</p></section>'
+    cards=''.join(f'<a class="stat-card" href="/admin/{key}"><span>{title[0]}</span><strong>{counts[key]}</strong><small>Kayıtları yönet →</small></a>' for key,title in ADMIN_TYPES.items())
+    content='<div class="admin-welcome"><span class="eyebrow">SEYSA MEDYA / YÖNETİM</span><h1>Bugün ne üretelim?</h1><p>İçerikleri hazırlayın, markaları düzenleyin, çalışmalarınızı yayına alın.</p><div class="form-actions">'+button('Yeni yazı','/admin/icerikler/yeni')+button('Referans ekle','/admin/referanslar/yeni')+'</div></div><div class="stat-grid">'+cards+'</div><div class="admin-guide-grid"><section class="admin-help"><h2>Şirket & referans</h2><p>Şirket, ortak marka ve logo kaydıdır. Referans ise bu markanın sitede nerede ve hangi sırada görüneceğini belirler.</p><p>Referans eklerken yeni şirketi ve logosunu aynı formda oluşturabilirsiniz. Şirket kaydı tek başına sitede görünmez.</p></section><section class="admin-help"><h2>İçerik Rehberi</h2><p>Rehberleri ve sektör haberlerini taslak olarak hazırlayın. Kapağı, başlıkları ve kaynakları ekleyin; önizlemede kontrol edip yayınlayın.</p><a class="text-link" href="/admin/icerikler">Yazılara git</a></section></div>'
     return admin_shell('Yönetim paneli',content,csrf)
 
 
-def record_list(kind,rows,csrf,notice=''):
+def record_list(kind,rows,csrf,notice='',filters=None):
+    filters=filters or {}; q=filters.get('q','').strip(); status=filters.get('status','')
     title,singular=ADMIN_TYPES[kind]
-    content=f'<div class="admin-title"><h1>{title}</h1>{button(singular+" ekle","/admin/"+kind+"/yeni")}</div>'
+    total=len(rows)
+    if q: rows=[r for r in rows if q.casefold() in ' '.join(str(r.get(k) or '') for k in ('name','title','company_name','sector','topic')).casefold()]
+    if status in ('published','draft') and kind!='sirketler': rows=[r for r in rows if bool(r['published'])==(status=='published')]
+    if kind=='sirketler' and status=='unlinked': rows=[r for r in rows if not r.get('reference_id')]
+    descriptions={'sirketler':'Logo ve şirket bilgilerini tek yerde tutun. Bağlı projeleri ve referans durumunu buradan takip edin.','referanslar':'Ana sayfadaki logo şeridini ve referans sayfasını yönetin. Aynı şirket için tek kayıt yeterli.','projeler':'Projelerinizi, yayın durumlarını ve fotoğraf galerilerini yönetin.','icerikler':'Rehberler ve sektör haberleri: taslak hazırlayın, önizleyin, yayınlayın.'}
+    content=f'<div class="admin-title"><div><span class="eyebrow">İÇERİK YÖNETİMİ</span><h1>{title}</h1></div>{button(singular+" ekle","/admin/"+kind+"/yeni")}</div><p class="admin-description">{descriptions[kind]}</p>'
+    options=[('','Tüm kayıtlar')]+([('unlinked','Referansı olmayanlar')] if kind=='sirketler' else [('published','Yayında'),('draft','Taslak')])
+    select=''.join(f'<option value="{key}" '+('selected' if status==key else '')+f'>{label}</option>' for key,label in options)
+    content+=f'<form class="admin-filters" method="get" action="/admin/{kind}"><label>Kayıtlarda ara<input name="q" type="search" value="{e(q)}" placeholder="Ad veya başlık" maxlength="200"></label><label>Durum<select name="status">{select}</select></label><button class="button">Filtrele</button><a href="/admin/{kind}">Temizle</a></form><p class="record-count">{total} kayıttan {len(rows)} gösteriliyor</p>'
     if not rows:
-        content+=f'<div class="empty-state">Henüz kayıt yok. <a href="/admin/{kind}/yeni">{singular} ekleyin.</a></div>'
+        content+='<div class="empty-state">'+('Bu filtrelere uyan kayıt yok. Filtreleri temizleyip tekrar deneyin.' if total else 'Henüz kayıt yok. İlk kaydınızı yukarıdaki düğmeyle ekleyin.')+'</div>'
     else:
         lines=''
         for r in rows:
-            name=r.get('name') or r.get('title') or r.get('company_name')
-            logo=r.get('logo') or r.get('image')
-            image=f'<img src="{e(logo)}" alt="" width="60" height="42">' if logo else ''
-            status=('Yayında' if r['published'] else 'Taslak') if kind!='sirketler' else (r.get('sector') or '—')
-            if kind=='referanslar' and r.get('is_sample'): status = 'Örnek · '+status
-            gallery_link = '<a href="/admin/projeler/'+str(r["id"])+'/galeri">Fotoğraflar / Videolar</a>' if kind=='projeler' else ''
-            lines+=f'<tr><td><div class="record-name">{image}<span>{e(name)}</span></div></td><td>{e(status)}</td><td class="record-actions">{gallery_link}<a href="/admin/{kind}/{r["id"]}/duzenle">Düzenle</a><a class="danger-link" href="/admin/{kind}/{r["id"]}/sil">Sil</a></td></tr>'
-        content+=f'<div class="table-wrap"><table><thead><tr><th scope="col">{singular}</th><th scope="col">{"Sektör" if kind=="sirketler" else "Durum"}</th><th scope="col">İşlemler</th></tr></thead><tbody>{lines}</tbody></table></div>'
+            name=r.get('name') or r.get('title') or r.get('company_name'); logo=r.get('logo') or r.get('image')
+            image=f'<img src="{e(logo)}" alt="" width="72" height="54">' if logo else '<span class="record-placeholder" aria-hidden="true">'+e(name[:1])+'</span>'
+            detail=''; extra=''
+            if kind=='sirketler':
+                ref_id=r.get('reference_id')
+                status_label=('Referans yayında' if r.get('reference_published') else 'Referans taslak') if ref_id else 'Referans yok'
+                state='published' if r.get('reference_published') else 'draft'
+                detail=e(r.get('sector') or 'Sektör belirtilmedi')+' · '+str(r.get('project_count',0))+' proje'
+                extra=f'<a href="/admin/referanslar/{ref_id}/duzenle">Referansı düzenle</a>' if ref_id else f'<a href="/admin/referanslar/yeni?sirket={r["id"]}">Referans ekle</a>'
+            else:
+                status_label='Yayında' if r['published'] else 'Taslak'; state='published' if r['published'] else 'draft'
+                detail='Sıra: '+str(r.get('position',0))
+                if kind=='referanslar':
+                    if r.get('is_sample'): detail+=' · Örnek yerleşim'
+                    if not logo: detail+=' · Logo eksik'
+                    extra=f'<a href="/admin/sirketler/{r["company_id"]}/duzenle">Şirket bilgileri</a>'
+                if kind=='icerikler':
+                    detail=('Rehber' if r['category']=='rehberler' else 'Sektör haberi')+' · '+e(r['date'])
+                    extra=f'<a href="/admin/icerikler/{r["id"]}/onizle" target="_blank" rel="noopener">Önizle</a>'
+                if kind=='projeler': extra=f'<a href="/admin/projeler/{r["id"]}/galeri">Galeri</a>'
+            lines+=f'<tr><td><div class="record-name">{image}<div><strong>{e(name)}</strong><small>{detail}</small></div></div></td><td><span class="status-badge {state}">{status_label}</span></td><td class="record-actions">{extra}<a href="/admin/{kind}/{r["id"]}/duzenle">Düzenle</a><a class="danger-link" href="/admin/{kind}/{r["id"]}/sil">Sil</a></td></tr>'
+        content+=f'<div class="table-wrap"><table><thead><tr><th scope="col">{singular}</th><th scope="col">Durum</th><th scope="col">İşlemler</th></tr></thead><tbody>{lines}</tbody></table></div>'
     return admin_shell(title,content,csrf,kind,notice)
 
 
 def record_form(kind,csrf,companies,record=None,error=''):
+    if kind=='icerikler': return article_form(csrf,record,error)
     record=record or {}; title=ADMIN_TYPES[kind][1]+(' düzenle' if record.get('id') else ' ekle')
     def field(label,name,required=False,limit=200,textarea=False,typ='text'):
         attrs=f'name="{name}" maxlength="{limit}" '+('required' if required else '')
         control=f'<textarea {attrs} rows="5">{e(record.get(name,""))}</textarea>' if textarea else f'<input type="{typ}" {attrs} value="{e(record.get(name,""))}">'
         return f'<label>{label}{control}</label>'
     def company_select(required=False):
-        options='<option value="">Şirket seçin</option>'+''.join(f'<option value="{c["id"]}" {"selected" if str(c["id"])==str(record.get("company_id")) else ""}>{e(c["name"])}</option>' for c in companies)
+        options='<option value="">Yeni şirket oluştur / şirket seçin</option>'+''.join(f'<option value="{c["id"]}" {"selected" if str(c["id"])==str(record.get("company_id")) else ""}>{e(c["name"])}</option>' for c in companies if kind!='referanslar' or not c.get('reference_id') or str(c['id'])==str(record.get('company_id')))
         return '<label>Şirket<select name="company_id" '+('required' if required else '')+'>'+options+'</select></label>'
     def upload(label,key):
         current=record.get(key,'')
@@ -281,10 +308,11 @@ def record_form(kind,csrf,companies,record=None,error=''):
         options='<option value="">Hizmet seçin</option>'+''.join(f'<option {"selected" if s["title"]==record.get("service") else ""}>{e(s["title"])}</option>' for s in SERVICES.values())
         fields=field('Proje adı','title',True)+company_select()+f'<label>Hizmet<select name="service">{options}</select></label>'+field('Kısa açıklama','summary',limit=400,textarea=True)+field('Proje açıklaması','body',limit=12000,textarea=True)+upload('Proje görseli','image')+field('İhtiyaç ve hedef (isteğe bağlı)','brief',limit=8000,textarea=True)+field('Yaklaşım ve üretim süreci (isteğe bağlı)','process',limit=8000,textarea=True)+field('Sonuç ve teslimler (isteğe bağlı)','result',limit=8000,textarea=True)
     else:
-        fields=company_select(True)+'<p class="form-note">Logo, şirket kaydından alınır. Logoyu değiştirmek için şirketi düzenleyin.</p>'+field('Referans yorumu (isteğe bağlı)','quote',limit=2000,textarea=True)+field('Yorum sahibi / unvanı (isteğe bağlı)','author')
+        fields='<section class="form-section"><h2>1. Şirket ve logo</h2>'+company_select()+'<p class="form-note">Referansı olmayan bir şirket seçin veya aşağıdan yeni şirket oluşturun. Her şirketin tek referans kaydı vardır.</p><details'+(' open' if not record.get('company_id') else '')+'><summary>Yeni şirket oluştur</summary>'+field('Yeni şirket / kurum adı','new_company_name')+field('Sektör (isteğe bağlı)','new_company_sector')+'</details>'+upload('Logo yükle veya değiştir','logo')+'<p class="form-note">Seçili şirketin logosu kullanılır. Buradan yüklediğiniz logo şirket kaydını da günceller.</p></section><section class="form-section"><h2>2. Referans bilgileri</h2>'+field('Referans yorumu (isteğe bağlı)','quote',limit=2000,textarea=True)+field('Yorum sahibi / unvanı (isteğe bağlı)','author')
     if kind=='referanslar':
-        fields += '<label class="checkbox"><input type="checkbox" name="is_sample" value="1" '+('checked' if record.get('is_sample') else '')+'> Örnek yerleşim (müşteri referansı değildir)</label>'
+        fields += '</section><label class="checkbox"><input type="checkbox" name="is_sample" value="1" '+('checked' if record.get('is_sample') else '')+'> Örnek yerleşim (müşteri referansı değildir)</label>'
     if kind!='sirketler':
+        fields+='<p class="form-note">Düşük sıra numarası önce gösterilir. Taslaklar ziyaretçilere görünmez.</p>'
         fields+=f'<label>Gösterim sırası<input name="position" type="number" min="0" max="9999" value="{e(record.get("position",0))}" required></label><label class="checkbox"><input type="checkbox" name="published" value="1" {"checked" if record.get("published") else ""}> Sitede yayınla</label>'
     action='/admin/'+kind+'/'+(str(record['id'])+'/duzenle' if record.get('id') else 'yeni')
     content=f'<div class="admin-title"><h1>{title}</h1><a href="/admin/{kind}">Listeye dön</a></div>'
@@ -293,6 +321,24 @@ def record_form(kind,csrf,companies,record=None,error=''):
     if kind=='projeler':
         content += '<section class="admin-help"><h2>Fotoğraf & video galerisi</h2>'+(button('Galeriyi düzenle', '/admin/projeler/'+str(record['id'])+'/galeri') if record.get('id') else '<p>Önce projeyi kaydedin. Düzenleme sayfasından galeriye fotoğraf ve video ekleyebilirsiniz.</p>')+'</section>'
     return admin_shell(title,content,csrf,kind)
+
+
+def article_form(csrf,record=None,error=''):
+    r=record or {}; editing=bool(r.get('id')); title='İçeriği düzenle' if editing else 'Yeni içerik'
+    def field(label,key,limit=200,area=False,required=False,typ='text',default=''):
+        attrs=f'name="{key}" maxlength="{limit}"'+(' required' if required else '')
+        control=f'<textarea {attrs} rows="'+('18' if key=='body' else '3')+f'">{e(r.get(key,default))}</textarea>' if area else f'<input {attrs} type="{typ}" value="{e(r.get(key,default))}">'
+        return '<label>'+label+control+'</label>'
+    action='/admin/icerikler/'+(str(r['id'])+'/duzenle' if editing else 'yeni')
+    options=''.join(f'<option value="{key}" '+('selected' if r.get('category','rehberler')==key else '')+f'>{label}</option>' for key,label in [('rehberler','Rehberler'),('sektor-haberleri','Sektör Haberleri')])
+    image_options='<option value="keep">Mevcut kapağı koru</option>' if r.get('image') else ''
+    image_options+=''.join(f'<option value="{key}" '+('selected' if r.get('image_choice')==key else '')+f'>{label}</option>' for key,label in [('social','Sosyal medya'),('design','Tasarım'),('production','Prodüksiyon'),('digital','Dijital'),('marketing','Pazarlama'),('brand','Marka')])
+    image=f'<img class="editor-cover" src="{e(r["image"])}" alt="Mevcut kapak">' if r.get('image') else ''
+    preview=f'<a class="button" href="/admin/icerikler/{r["id"]}/onizle" target="_blank" rel="noopener">Kaydedilmiş yazıyı önizle</a>' if editing else '<p class="form-note">İlk kayıttan sonra yazıyı önizleyebilirsiniz.</p>'
+    content=f'<div class="admin-title"><div><span class="eyebrow">İÇERİK REHBERİ</span><h1>{title}</h1></div><a href="/admin/icerikler">Listeye dön</a></div>'
+    if error: content+=f'<p class="error" role="alert">{e(error)}</p>'
+    content+=f'<form class="article-editor" data-new="{str(not editing).lower()}" method="post" enctype="multipart/form-data" action="{action}"><input type="hidden" name="csrf" value="{e(csrf)}"><div class="editor-main"><section class="editor-panel"><h2>Yazının ana hatları</h2>'+field('Başlık','title',required=True)+field('Sayfa adresi','slug',160,required=True)+'<p class="form-note">Örnek: instagram-reels-icin-5-ipucu. Yayındaki bir yazının adresini değiştirirseniz eski bağlantısı çalışmaz.</p>'+field('Kısa açıklama','summary',400,area=True)+field('Konu etiketi','topic',100)+'</section><section class="editor-panel"><h2>İçerik</h2><button class="plain-button" type="button" data-add-heading hidden>Bölüm başlığı ekle</button><p class="form-note">Bölüm başlıklarına iki diyez ve boşlukla başlayın: <strong>## İlk kareyi planlayın</strong>. Alt satırlara metninizi yazın. HTML gerekmez.</p>'+field('Yazı metni','body',30000,area=True)+field('Son öneri / bir sonraki adım','takeaway',1000,area=True)+'</section><section class="editor-panel"><h2>Kaynak</h2><p class="form-note">Sektör haberlerini yayınlamak için kaynak bağlantısı gereklidir.</p>'+field('Kaynak adı','source_label')+field('Kaynak bağlantısı','source_url',1000,typ='url')+'</section></div><aside class="editor-side"><section class="editor-panel"><h2>Yayın ayarları</h2><label>Kategori<select name="category">'+options+'</select></label>'+field('Yazı tarihi','date',10,required=True,typ='date',default=date.today().isoformat())+'<p class="form-note">Tarih yazıda gösterilir; otomatik yayın zamanlaması yapmaz.</p><label>Gösterim sırası<input type="number" name="position" min="0" max="9999" value="'+e(r.get('position',0))+'" required></label><label class="checkbox"><input type="checkbox" name="published" value="1" '+('checked' if r.get('published') else '')+'> Sitede yayınla</label><p class="form-note">İşaretli değilse taslak olarak kaydedilir. Küçük sıra numarası önce gösterilir.</p><button class="button" type="submit">Değişiklikleri kaydet</button>'+preview+'</section><section class="editor-panel"><h2>Kapak görseli</h2>'+image+'<label>Hazır kapak<select name="image_choice">'+image_options+'</select></label><label>Veya kendi kapağınızı yükleyin<input type="file" name="media" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label><p class="form-note">PNG, JPG, WebP veya SVG; en fazla 5 MB. Yüklediğiniz dosya hazır kapağın yerine geçer.</p></section></aside></form>'
+    return admin_shell(title,content,csrf,'icerikler')
 
 
 def gallery_editor(project,media,csrf):
@@ -319,10 +365,10 @@ def account_page(csrf,error='',notice=''):
     return admin_shell('Hesap',content,csrf,'hesap',notice)
 
 
-def settings_page(csrf,notice=''):
-    settings=storage.site_settings()
-    fields=''.join('<label>'+label+'<input name="'+key+'" value="'+e(settings.get(key,''))+'" maxlength="500" '+('type="url"' if key in ('instagram','linkedin') else '')+'></label>' for key,label in [('whatsapp','WhatsApp numarası (ülke koduyla, ör. 905xxxxxxxxx)'),('address','Adres'),('instagram','Instagram hesap bağlantısı'),('linkedin','LinkedIn hesap bağlantısı')])
-    return admin_shell('Site bilgileri','<h1>Site bilgileri</h1><form class="editor-form" method="post" action="/admin/site-bilgileri"><input type="hidden" name="csrf" value="'+e(csrf)+'">'+fields+'<p class="form-note">Boş bırakılan sosyal medya alanları bağlantı olarak yayınlanmaz. WhatsApp numarasını boşaltırsanız düğme gizlenir.</p><button class="button">Kaydet</button></form>',csrf,'site-bilgileri',notice)
+def settings_page(csrf,notice='',error='',values=None):
+    settings=values if values is not None else storage.site_settings()
+    fields=''.join('<label>'+label+'<input name="'+key+'" value="'+e(settings.get(key,''))+'" maxlength="500" '+('type="url"' if key in ('instagram','linkedin') else '')+'></label>' for key,label in [('email','İletişim e-postası'),('whatsapp','WhatsApp numarası (ülke koduyla, ör. 905xxxxxxxxx)'),('address','Adres'),('instagram','Instagram hesap bağlantısı'),('linkedin','LinkedIn hesap bağlantısı')])
+    return admin_shell('Site bilgileri','<h1>Site bilgileri</h1><p class="admin-description">İletişim sayfası, footer ve sosyal bağlantılar aynı bilgileri kullanır.</p>'+('<p class="error" role="alert">'+e(error)+'</p>' if error else '')+'<form class="editor-form" method="post" action="/admin/site-bilgileri"><input type="hidden" name="csrf" value="'+e(csrf)+'">'+fields+'<p class="form-note">Boş bırakılan sosyal medya alanları bağlantı olarak yayınlanmaz. WhatsApp numarasını boşaltırsanız düğme gizlenir.</p><button class="button">Kaydet</button></form>',csrf,'site-bilgileri',notice)
 
 
 def error_page(status,message):
@@ -333,28 +379,31 @@ def error_page(status,message):
 
 
 def journal_card(item):
-    return f'''<a class="journal-card" href="/icerik-rehberi/{e(item['slug'])}"><div class="journal-cover"><img src="/assets/media/{e(item['image'])}.jpg" alt="" width="1000" height="700" loading="lazy"><span>{'REHBER' if item['category']=='rehberler' else 'SEKTÖR HABERİ'} <svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-up-right"/></svg></span></div><div class="journal-card-copy"><span class="eyebrow">{e(item['topic'])}</span><h2>{e(item['title'])}</h2><p>{e(item['summary'])}</p><time datetime="{item['date']}">{item['date_label']}</time></div></a>'''
+    return f'''<a class="journal-card" href="/icerik-rehberi/{e(item['slug'])}"><div class="journal-cover"><img src="{e(item['image'])}" alt="" width="1000" height="700" loading="lazy"><span>{'REHBER' if item['category']=='rehberler' else 'SEKTÖR HABERİ'} <svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-up-right"/></svg></span></div><div class="journal-card-copy"><span class="eyebrow">{e(item['topic'])}</span><h2>{e(item['title'])}</h2><p>{e(item['summary'])}</p><time datetime="{item['date']}">{item['date_label']}</time></div></a>'''
 
 
-def journal_page(path='/icerik-rehberi'):
+def journal_page(path='/icerik-rehberi', preview=None):
+    articles=storage.public_articles()
     selected = path.rsplit('/', 1)[-1]
     categories = [('icerik-rehberi','Tümü','/icerik-rehberi'), ('rehberler','Rehberler','/icerik-rehberi/rehberler'), ('sektor-haberleri','Sektör Haberleri','/icerik-rehberi/sektor-haberleri')]
     if path in [c[2] for c in categories]:
-        items = ARTICLES if selected == 'icerik-rehberi' else [a for a in ARTICLES if a['category']==selected]
+        items = articles if selected == 'icerik-rehberi' else [a for a in articles if a['category']==selected]
         title = 'İçerik Rehberi' if selected == 'icerik-rehberi' else next(c[1] for c in categories if c[0]==selected)
         tabs = ''.join(f'<a href="{url}"'+(' aria-current="page"' if key==selected else '')+f'>{label}</a>' for key,label,url in categories)
         body = '<section class="container editorial-intro journal-intro"><span class="eyebrow">SEYSA MEDYA / FİKİR NOTLARI</span><h1>'+('İÇERİK<br><em>REHBERİ.</em>' if selected=='icerik-rehberi' else e(title).upper()+'.')+'</h1><p>Daha iyi içerikler için pratik fikirler.<br>Sosyal medya, prodüksiyon ve dijital dünyadan notlar.</p></section><section class="container journal-list"><nav class="journal-tabs" aria-label="İçerik kategorileri">'+tabs+'</nav><div class="journal-grid">'+''.join(journal_card(a) for a in items)+'</div></section>'
         return page(title, body, path, 'İçerik pazarlaması rehberleri, Reels ipuçları ve kaynaklı sektör haberleri.')
-    item = ARTICLE_BY_SLUG.get(selected)
+    item = preview or next((a for a in articles if a['slug']==selected),None)
     if not item or path != '/icerik-rehberi/'+selected:
         return None
     count = sum(len(text.split()) for _,text in item['sections'])
     minutes = max(1, (count+149)//150)
     toc = ''.join(f'<a href="#bolum-{i}">{e(title)}</a>' for i,(title,_) in enumerate(item['sections'],1))
     sections = ''.join(f'<section id="bolum-{i}"><h2>{e(title)}</h2><p>{e(text)}</p></section>' for i,(title,text) in enumerate(item['sections'],1))
+    takeaway = '<div class="journal-takeaway"><span class="eyebrow">BİR SONRAKİ ADIM</span><p>'+e(item['takeaway'])+'</p></div>' if item['takeaway'] else ''
     source = ''
     if item.get('source'):
         source = f'<p class="journal-source">Kaynak: <a href="{e(item["source"][1])}" target="_blank" rel="noopener noreferrer">{e(item["source"][0])} <svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-up-right"/></svg></a></p>'
-    related = [a for a in ARTICLES if a['slug'] != selected and a['category']==item['category']][:2]
-    body = f'''<article class="container journal-article"><header><a class="text-link" href="/icerik-rehberi"><svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-left"/></svg> İçerik Rehberi</a><span class="eyebrow">{e(item['topic'])}</span><h1>{e(item['title'])}</h1><p class="journal-lead">{e(item['summary'])}</p><div class="journal-meta"><span>Seysa Medya</span><time datetime="{item['date']}">{item['date_label']}</time><span>{minutes} dk okuma</span></div></header><img class="journal-hero" src="/assets/media/{e(item['image'])}.jpg" alt="" width="1400" height="700"><div class="journal-reading"><aside><span class="eyebrow">BU YAZIDA</span><nav aria-label="Yazı içindekiler">{toc}</nav></aside><div class="journal-prose">{sections}<div class="journal-takeaway"><span class="eyebrow">BİR SONRAKİ ADIM</span><p>{e(item['takeaway'])}</p></div>{source}</div></div></article><section class="container journal-related"><h2>Bir fikir daha.</h2><div class="journal-grid">{''.join(journal_card(a) for a in related)}</div></section><section class="container contact-callout"><h2>Bu fikirleri markanıza uyarlayalım.</h2>{button('Birlikte planlayalım','/iletisim')}</section>'''
+    related = [a for a in articles if a['slug'] != selected and a['category']==item['category']][:2]
+    body = f'''<article class="container journal-article"><header><a class="text-link" href="/icerik-rehberi"><svg class="ui-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-left"/></svg> İçerik Rehberi</a><span class="eyebrow">{e(item['topic'])}</span><h1>{e(item['title'])}</h1><p class="journal-lead">{e(item['summary'])}</p><div class="journal-meta"><span>Seysa Medya</span><time datetime="{item['date']}">{item['date_label']}</time><span>{minutes} dk okuma</span></div></header><img class="journal-hero" src="{e(item['image'])}" alt="" width="1400" height="700"><div class="journal-reading"><aside><span class="eyebrow">BU YAZIDA</span><nav aria-label="Yazı içindekiler">{toc}</nav></aside><div class="journal-prose">{sections}{takeaway}{source}</div></div></article><section class="container journal-related"><h2>Bir fikir daha.</h2><div class="journal-grid">{''.join(journal_card(a) for a in related)}</div></section><section class="container contact-callout"><h2>Bu fikirleri markanıza uyarlayalım.</h2>{button('Birlikte planlayalım','/iletisim')}</section>'''
+    if preview: body='<div class="preview-banner">Yönetici önizlemesi · '+('Yayında' if item['published'] else 'Taslak')+' · <a href="/admin/icerikler/'+str(item['id'])+'/duzenle">Düzenlemeye dön</a></div>'+body
     return page(item['title'], body, path, item['summary'])

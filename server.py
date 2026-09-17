@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Seysa Medya: multi-page website with a server-side, persistent admin panel."""
 import argparse
+from datetime import date
 import hashlib
 import json
 import mimetypes
@@ -21,7 +22,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from seysa import storage, views
 from seysa.content import SERVICES
 
-TABLES = {'sirketler':'companies','projeler':'projects','referanslar':'reference_items'}
+TABLES = {'sirketler':'companies','projeler':'projects','referanslar':'reference_items','icerikler':'articles'}
 MAX_BODY = 6 * 1024 * 1024
 MAX_IMAGE = 5 * 1024 * 1024
 
@@ -158,7 +159,7 @@ class Handler(BaseHTTPRequestHandler):
                         uploads.append(data)
                         if len(uploads)>12: raise ValueError('Tek seferde en fazla 12 fotoğraf seçin.')
                 else:
-                    if len(data)>50000: raise ValueError('Metin çok uzun.')
+                    if len(data)>(120000 if name=='body' else 50000): raise ValueError('Metin çok uzun.')
                     fields[name]=data.decode('utf-8')
         elif content_type.startswith('application/x-www-form-urlencoded'):
             fields={k:v[-1] for k,v in parse_qs(body.decode('utf-8'),keep_blank_values=True,max_num_fields=30).items()}
@@ -169,12 +170,12 @@ class Handler(BaseHTTPRequestHandler):
     def record(self,kind,ident):
         with storage.connect() as db:
             if kind=='referanslar':
-                row=db.execute('SELECT r.*, c.name AS company_name FROM reference_items r JOIN companies c ON c.id=r.company_id WHERE r.id=?',(ident,)).fetchone()
+                row=db.execute('SELECT r.*, c.name AS company_name, c.logo FROM reference_items r JOIN companies c ON c.id=r.company_id WHERE r.id=?',(ident,)).fetchone()
             else: row=db.execute('SELECT * FROM '+TABLES[kind]+' WHERE id=?',(ident,)).fetchone()
         return dict(row) if row else None
 
     def companies(self):
-        with storage.connect() as db: return [dict(r) for r in db.execute('SELECT * FROM companies ORDER BY name COLLATE NOCASE')]
+        with storage.connect() as db: return [dict(r) for r in db.execute('SELECT c.*, r.id AS reference_id, r.published AS reference_published, (SELECT COUNT(*) FROM projects p WHERE p.company_id=c.id) AS project_count FROM companies c LEFT JOIN reference_items r ON r.company_id=c.id ORDER BY c.name COLLATE NOCASE')]
 
     def do_HEAD(self): self.do_GET()
 
@@ -198,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not file.is_file(): return self.fail(404,'Görsel bulunamadı.')
                 # Draft-only media requires the same admin authorization as the draft.
                 with storage.connect() as db:
-                    published=db.execute('SELECT 1 FROM projects WHERE image=? AND published=1 UNION ALL SELECT 1 FROM companies c JOIN reference_items r ON r.company_id=c.id WHERE c.logo=? AND r.published=1 UNION ALL SELECT 1 FROM project_media m JOIN projects p ON p.id=m.project_id WHERE m.url=? AND p.published=1 LIMIT 1',(path,path,path)).fetchone()
+                    published=db.execute('SELECT 1 FROM projects WHERE image=? AND published=1 UNION ALL SELECT 1 FROM companies c JOIN reference_items r ON r.company_id=c.id WHERE c.logo=? AND r.published=1 UNION ALL SELECT 1 FROM project_media m JOIN projects p ON p.id=m.project_id WHERE m.url=? AND p.published=1 UNION ALL SELECT 1 FROM articles WHERE image=? AND published=1 LIMIT 1',(path,path,path,path)).fetchone()
                 session=self.get_session()
                 if not published and not (session and session['user_id']): return self.fail(404,'Görsel bulunamadı.')
                 return self.send(file.read_bytes(),content_type=mimetypes.guess_type(str(file))[0],headers={'Cache-Control':'private, no-store'})
@@ -235,6 +236,11 @@ class Handler(BaseHTTPRequestHandler):
             if not session: session,cookie=self.new_session()
             return self.send(views.auth_page(session['csrf']),headers={'Set-Cookie':cookie} if cookie else None)
         csrf=session['csrf']
+        preview_match=re.fullmatch(r'/admin/icerikler/(\d+)/onizle',path)
+        if preview_match:
+            record=self.record('icerikler',int(preview_match[1]))
+            if not record: return self.fail(404,'İçerik bulunamadı.')
+            return self.send(views.journal_page('/icerik-rehberi/'+record['slug'],storage.article_content(record)))
         if path=='/admin/site-bilgileri': return self.send(views.settings_page(csrf,'Bilgiler kaydedildi.' if parse_qs(query).get('kaydedildi') else ''))
         gallery_match=re.fullmatch(r'/admin/projeler/(\d+)/galeri',path)
         if gallery_match:
@@ -246,7 +252,7 @@ class Handler(BaseHTTPRequestHandler):
             with storage.connect() as db: counts={key:db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0] for key,table in TABLES.items()}
             return self.send(views.dashboard(csrf,counts))
         if path=='/admin/hesap': return self.send(views.account_page(csrf))
-        match=re.fullmatch(r'/admin/(sirketler|projeler|referanslar)(?:/(yeni|\d+)(?:/(duzenle|sil))?)?',path)
+        match=re.fullmatch(r'/admin/(sirketler|projeler|referanslar|icerikler)(?:/(yeni|\d+)(?:/(duzenle|sil))?)?',path)
         if not match: return self.fail(404,'Sayfa bulunamadı.')
         kind,ident,action=match.groups()
         if not ident:
@@ -255,8 +261,11 @@ class Handler(BaseHTTPRequestHandler):
                 else: sql='SELECT * FROM '+TABLES[kind]+' ORDER BY id DESC'
                 rows=[dict(r) for r in db.execute(sql)]
             notice={'kaydedildi':'Kayıt kaydedildi.','silindi':'Kayıt silindi.'}.get(parse_qs(query).get('durum',[''])[0],'')
-            return self.send(views.record_list(kind,rows,csrf,notice))
-        if ident=='yeni' and action is None: return self.send(views.record_form(kind,csrf,self.companies()))
+            if kind=='sirketler': rows=self.companies()
+            return self.send(views.record_list(kind,rows,csrf,notice,{k:v[0] for k,v in parse_qs(query).items()}))
+        if ident=='yeni' and action is None:
+            initial={'company_id':parse_qs(query).get('sirket',[''])[0]} if kind=='referanslar' else None
+            return self.send(views.record_form(kind,csrf,self.companies(),initial))
         if not ident.isdigit(): return self.fail(404,'Kayıt bulunamadı.')
         record=self.record(kind,int(ident))
         if not record: return self.fail(404,'Kayıt bulunamadı.')
@@ -271,7 +280,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             if not self.valid_host(): return self.fail(400,'Geçersiz adres.')
-            if self.headers.get('Origin') != self.server.origin: return self.fail(403,'İstek doğrulanamadı. Formu yeniden açın.')
+            request_origin=urlsplit(self.server.origin).scheme+'://'+self.headers.get('Host','').lower()
+            if self.headers.get('Origin') != request_origin: return self.fail(403,'İstek doğrulanamadı. Formu yeniden açın.')
             path=urlsplit(self.path).path
             session=self.get_session()
             if not session: return self.fail(403,'Oturum sona erdi. Formu yeniden açın.')
@@ -284,20 +294,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self.redirect('/admin',self.cookie(clear=True))
             if path=='/admin/hesap': return self.change_password(fields,session)
             if path=='/admin/site-bilgileri':
-                values={k:fields.get(k,'').strip() for k in ('whatsapp','address','instagram','linkedin')}
-                if any(len(v)>500 for v in values.values()): raise ValueError('Alanlar en fazla 500 karakter olabilir.')
-                values['whatsapp']=re.sub(r'[\s()+-]','',values['whatsapp'])
-                if values['whatsapp'] and not re.fullmatch(r'[1-9]\d{9,14}',values['whatsapp']): raise ValueError('Telefonu ülke koduyla girin.')
-                for key,hosts in [('instagram',('instagram.com','www.instagram.com')),('linkedin',('linkedin.com','www.linkedin.com','tr.linkedin.com'))]:
-                    if values[key]:
-                        url=urlsplit(values[key])
-                        if url.scheme!='https' or url.hostname not in hosts or url.username or url.password: raise ValueError('Geçerli bir '+key+' HTTPS hesap bağlantısı girin.')
-                with storage.connect() as db:
-                    for key,value in values.items(): db.execute('INSERT INTO app_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',('site_'+key,value))
-                return self.redirect('/admin/site-bilgileri?kaydedildi=1')
+                try:
+                    values={k:fields.get(k,'').strip() for k in ('email','whatsapp','address','instagram','linkedin')}
+                    if any(len(v)>500 for v in values.values()): raise ValueError('Alanlar en fazla 500 karakter olabilir.')
+                    if 'email' not in fields: values['email']=storage.site_settings().get('email','info@seysamedya.com')
+                    if not re.fullmatch(r"[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+",values['email']): raise ValueError('Geçerli bir iletişim e-postası girin.')
+                    values['whatsapp']=re.sub(r'[\s()+-]','',values['whatsapp'])
+                    if values['whatsapp'] and not re.fullmatch(r'[1-9]\d{9,14}',values['whatsapp']): raise ValueError('Telefonu ülke koduyla girin.')
+                    for key,hosts in [('instagram',('instagram.com','www.instagram.com')),('linkedin',('linkedin.com','www.linkedin.com','tr.linkedin.com'))]:
+                        if values[key]:
+                            url=urlsplit(values[key])
+                            if url.scheme!='https' or url.hostname not in hosts or url.username or url.password: raise ValueError('Geçerli bir '+key+' HTTPS hesap bağlantısı girin.')
+                    with storage.connect() as db:
+                        for key,value in values.items(): db.execute('INSERT INTO app_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',('site_'+key,value))
+                    return self.redirect('/admin/site-bilgileri?kaydedildi=1')
+                except ValueError as ex:
+                    return self.send(views.settings_page(session['csrf'],error=str(ex),values=values),400)
             gallery_match=re.fullmatch(r'/admin/projeler/(\d+)/galeri(?:/(\d+)/sil)?',path)
             if gallery_match: return self.save_gallery(gallery_match,fields,upload)
-            match=re.fullmatch(r'/admin/(sirketler|projeler|referanslar)/(yeni|\d+)(?:/(duzenle|sil))?',path)
+            match=re.fullmatch(r'/admin/(sirketler|projeler|referanslar|icerikler)/(yeni|\d+)(?:/(duzenle|sil))?',path)
             if not match: return self.fail(404,'İşlem bulunamadı.')
             kind,ident,action=match.groups()
             current=self.record(kind,int(ident)) if ident.isdigit() else None
@@ -306,6 +321,7 @@ class Handler(BaseHTTPRequestHandler):
                 with storage.connect() as db: db.execute('DELETE FROM '+TABLES[kind]+' WHERE id=?',(ident,))
                 return self.redirect('/admin/'+kind+'?durum=silindi')
             if (ident=='yeni' and action is None) or (ident.isdigit() and action=='duzenle'):
+                if kind=='icerikler': return self.save_article(fields,upload,current,session)
                 return self.save_record(kind,fields,upload,current,session)
             return self.fail(404,'İşlem bulunamadı.')
         except (ValueError,UnicodeError) as ex:
@@ -359,8 +375,51 @@ class Handler(BaseHTTPRequestHandler):
             db.execute('DELETE FROM sessions')
         return self.redirect('/admin',self.cookie(clear=True))
 
+    def save_article(self,fields,upload,current,session):
+        current=current or {}; saved_file=None
+        try:
+            values={k:fields.get(k,'').strip() for k in ('title','slug','category','topic','summary','body','takeaway','source_label','source_url','date')}
+            for key,limit in {'title':200,'slug':160,'topic':100,'summary':400,'body':30000,'takeaway':1000,'source_label':200,'source_url':1000,'date':10}.items():
+                if len(values[key])>limit: raise ValueError('Alan sınırı aşıldı: '+key)
+            if not values['title']: raise ValueError('Bir içerik başlığı girin.')
+            if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*',values['slug']) or values['slug'] in ('rehberler','sektor-haberleri'): raise ValueError('Adres yalnızca küçük İngilizce harfler, rakamlar ve aralarda tire içermeli. Kategori adları kullanılamaz.')
+            if values['category'] not in ('rehberler','sektor-haberleri'): raise ValueError('Geçerli bir kategori seçin.')
+            try: values['date']=date.fromisoformat(values['date']).isoformat()
+            except ValueError: raise ValueError('Geçerli bir yazı tarihi girin.')
+            values['published']=int(fields.get('published')=='1')
+            try: values['position']=int(fields.get('position','0'))
+            except ValueError: raise ValueError('Gösterim sırası sayı olmalı.')
+            if not 0<=values['position']<=9999: raise ValueError('Gösterim sırası 0–9999 arasında olmalı.')
+            if values['published'] and (not values['body'] or not values['summary']): raise ValueError('Yayınlamadan önce kısa açıklama ve yazı metnini doldurun.')
+            if values['source_url']:
+                url=urlsplit(values['source_url'])
+                if url.scheme not in ('https','http') or not url.hostname or url.username or url.password: raise ValueError('Geçerli bir kaynak bağlantısı girin.')
+            if values['published'] and values['category']=='sektor-haberleri' and not values['source_url']: raise ValueError('Sektör haberini yayınlamak için kaynak bağlantısı ekleyin.')
+            image_choice=fields.get('image_choice','keep')
+            images={name:'/assets/media/'+name+'.jpg' for name in ('social','design','production','digital','marketing','brand')}
+            if image_choice not in ('keep',*images): raise ValueError('Geçerli bir kapak seçin.')
+            values['image']=current.get('image') or images['social']
+            if image_choice in images: values['image']=images[image_choice]
+            if upload:
+                data,ext=safe_image(upload)
+                saved_file=storage.UPLOADS/(secrets.token_hex(16)+ext)
+                saved_file.write_bytes(data); os.chmod(saved_file,0o600)
+                values['image']='/uploads/'+saved_file.name
+            with storage.connect() as db:
+                if current.get('id'):
+                    db.execute('UPDATE articles SET '+','.join(k+'=?' for k in values)+',updated_at=CURRENT_TIMESTAMP WHERE id=?',(*values.values(),current['id']))
+                else:
+                    db.execute('INSERT INTO articles('+','.join(values)+') VALUES('+','.join('?' for _ in values)+')',tuple(values.values()))
+            return self.redirect('/admin/icerikler?durum=kaydedildi')
+        except (ValueError,sqlite3.IntegrityError) as ex:
+            if saved_file: saved_file.unlink(missing_ok=True)
+            error='Bu adres başka bir yazıda kullanılıyor. Farklı bir adres girin.' if isinstance(ex,sqlite3.IntegrityError) else str(ex)
+            if upload: error+=' Dosyayı yeniden seçin.'
+            retained={**current,**fields,'published':fields.get('published')=='1'}
+            return self.send(views.article_form(session['csrf'],retained,error),400)
+
     def save_record(self,kind,fields,upload,current,session):
-        current=current or {}; values={}; saved_file=None
+        current=current or {}; values={}; saved_file=None; new_company=None; reference_logo=None
         try:
             def text(name,limit,required=False):
                 val=fields.get(name,'').strip()
@@ -369,13 +428,22 @@ class Handler(BaseHTTPRequestHandler):
                 return val
             if kind=='sirketler':
                 values=dict(name=text('name',200,True),sector=text('sector',200),website=text('website',200),logo=current.get('logo',''))
+                normalized=' '.join(values['name'].split()).casefold()
+                if any(' '.join(c['name'].split()).casefold()==normalized and c['id']!=current.get('id') for c in self.companies()): raise ValueError('Bu şirket zaten kayıtlı. Mevcut şirketi düzenleyin.')
                 if values['website']:
                     parsed=urlsplit(values['website'])
                     if parsed.scheme not in ('https','http') or not parsed.hostname or parsed.username or parsed.password: raise ValueError('Web sitesi http:// veya https:// ile başlayan geçerli bir adres olmalı.')
             else:
                 company_id=fields.get('company_id','')
                 if company_id and (not company_id.isdigit() or not any(str(c['id'])==company_id for c in self.companies())): raise ValueError('Geçerli bir şirket seçin.')
-                if kind=='referanslar' and not company_id: raise ValueError('Referans için bir şirket seçin.')
+                if kind=='referanslar' and not company_id:
+                    name=text('new_company_name',200,True)
+                    if any(' '.join(c['name'].split()).casefold()==' '.join(name.split()).casefold() for c in self.companies()): raise ValueError('Bu şirket zaten kayıtlı. Yukarıdaki listeden seçin.')
+                    new_company={'name':name,'sector':text('new_company_sector',200)}
+                if kind=='referanslar' and company_id:
+                    with storage.connect() as db:
+                        existing=db.execute('SELECT id FROM reference_items WHERE company_id=?',(company_id,)).fetchone()
+                    if existing and existing['id']!=current.get('id'): raise ValueError('Bu şirketin referansı zaten var. Mevcut referansı düzenleyin.')
                 try: position=int(fields.get('position','0'))
                 except ValueError: raise ValueError('Gösterim sırası bir sayı olmalı.')
                 if not 0<=position<=9999: raise ValueError('Gösterim sırası 0–9999 arasında olmalı.')
@@ -387,6 +455,12 @@ class Handler(BaseHTTPRequestHandler):
                     for key in ('brief','process','result'): values[key]=text(key,8000) if key in fields else current.get(key,'')
                 else: values.update(quote=text('quote',2000),author=text('author',200),is_sample=1 if fields.get('is_sample')=='1' else 0)
             media_key='logo' if kind=='sirketler' else 'image' if kind=='projeler' else None
+            if kind=='referanslar' and fields.get('remove_media')=='1': reference_logo=''
+            if kind=='referanslar' and upload:
+                data,ext=safe_image(upload)
+                saved_file=storage.UPLOADS/(secrets.token_hex(16)+ext)
+                saved_file.write_bytes(data); os.chmod(saved_file,0o600)
+                reference_logo='/uploads/'+saved_file.name
             if media_key:
                 if fields.get('remove_media')=='1': values[media_key]=''
                 if upload:
@@ -396,6 +470,10 @@ class Handler(BaseHTTPRequestHandler):
                     os.chmod(saved_file,0o600)
                     values[media_key]='/uploads/'+saved_file.name
             with storage.connect() as db:
+                if new_company:
+                    values['company_id']=db.execute('INSERT INTO companies(name,sector,logo) VALUES(?,?,?)',(new_company['name'],new_company['sector'],reference_logo or '')).lastrowid
+                elif reference_logo is not None:
+                    db.execute('UPDATE companies SET logo=? WHERE id=?',(reference_logo,values['company_id']))
                 if current.get('id'):
                     db.execute('UPDATE '+TABLES[kind]+' SET '+','.join(k+'=?' for k in values)+' WHERE id=?',tuple(values.values())+(current['id'],))
                 else:
@@ -456,6 +534,9 @@ def make_server(host='127.0.0.1',port=4173,origin=None):
         server.server_close();raise ValueError('SITE_ORIGIN geçerli bir http/https origin olmalı.')
     server.origin=server.origin.rstrip('/')
     server.allowed_hosts={parsed.netloc.lower()}
+    if host in ('127.0.0.1', '::1') or parsed.hostname in ('127.0.0.1', 'localhost'):
+        server.allowed_hosts.add(f'127.0.0.1:{actual}')
+        server.allowed_hosts.add(f'localhost:{actual}')
     server.secure=parsed.scheme=='https'
     server.local_setup=host in ('127.0.0.1','::1') and parsed.hostname in ('127.0.0.1','localhost','::1')
     return server

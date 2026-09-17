@@ -17,8 +17,9 @@ PNG=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42m
 
 class Client:
     def __init__(self,port): self.port=port;self.cookie=''
-    def request(self,path,fields=None,origin=None,upload=None,csrf=True):
+    def request(self,path,fields=None,origin=None,upload=None,csrf=True,host=None):
         headers={};body=None
+        if host: headers['Host']=host
         if self.cookie: headers['Cookie']=self.cookie
         if fields is not None:
             headers['Origin']=origin or f'http://127.0.0.1:{self.port}'
@@ -91,6 +92,67 @@ class WebsiteTests(unittest.TestCase):
             self.assertNotIn(symbol,home)
         self.assertIn('/assets/icons.svg#spark',home)
         self.assertEqual(self.client.request('/assets/icons.svg')[0],200)
+
+    def test_article_admin_lifecycle_and_seed_migration(self):
+        csrf=self.setup_admin(); public=Client(self.client.port)
+        fields={'csrf':csrf,'title':'Yeni rehber <script>','slug':'yeni-rehber','category':'rehberler','summary':'Kısa açıklama','body':'## İlk adım\nGüvenli <script>alert(1)</script> metin.\n\n## İkinci adım\nDevam edin.','date':'2026-09-17','position':'0'}
+        self.assertEqual(self.client.request('/admin/icerikler/yeni',fields,upload=PNG)[0],303)
+        with storage.connect() as db: item=dict(db.execute("SELECT * FROM articles WHERE slug='yeni-rehber'").fetchone())
+        path='/icerik-rehberi/yeni-rehber'; edit='/admin/icerikler/'+str(item['id'])
+        self.assertEqual(public.request(path)[0],404)
+        self.assertEqual(public.request(item['image'])[0],404)
+        import export_static
+        from unittest.mock import patch
+        from contextlib import redirect_stdout
+        import io
+        export_dir=storage.DATA/'export-check'
+        with patch.object(export_static,'DOCS_DIR',export_dir), redirect_stdout(io.StringIO()): export_static.export()
+        self.assertFalse((export_dir/'icerik-rehberi/yeni-rehber/index.html').exists())
+        self.assertFalse((export_dir/item['image'].lstrip('/')).exists())
+        preview=self.client.request(edit+'/onizle')
+        self.assertEqual(preview[0],200)
+        self.assertIn(b'&lt;script&gt;',preview[1])
+        self.assertNotIn('Güvenli <script>',preview[1].decode())
+        self.assertNotIn('Yönetici önizlemesi',public.request(edit+'/onizle')[1].decode())
+        self.assertEqual(self.client.request('/admin/icerikler/yeni',fields)[0],400)
+        self.assertEqual(self.client.request(edit+'/duzenle',{**fields,'slug':'rehberler'})[0],400)
+        self.assertEqual(self.client.request(edit+'/duzenle',{**fields,'category':'sektor-haberleri','published':'1'})[0],400)
+        self.assertEqual(self.client.request(edit+'/duzenle',{**fields,'source_url':'javascript:alert(1)'})[0],400)
+        self.assertEqual(self.client.request(edit+'/duzenle',{**fields,'published':'1'})[0],303)
+        self.assertEqual(public.request(path)[0],200)
+        self.assertEqual(public.request(item['image'])[0],200)
+        with patch.object(export_static,'DOCS_DIR',export_dir), redirect_stdout(io.StringIO()): export_static.export()
+        self.assertTrue((export_dir/'icerik-rehberi/yeni-rehber/index.html').is_file())
+        self.assertTrue((export_dir/item['image'].lstrip('/')).is_file())
+        self.assertIn(b'yeni-rehber',public.request('/icerik-rehberi')[1])
+        self.assertEqual(self.client.request(edit+'/duzenle',fields)[0],303)
+        self.assertEqual(public.request(path)[0],404)
+        self.assertEqual(self.client.request(edit+'/sil',{'csrf':csrf})[0],303)
+        with storage.connect() as db:
+            db.execute('DELETE FROM articles WHERE id=(SELECT MIN(id) FROM articles)')
+            count=db.execute('SELECT COUNT(*) FROM articles').fetchone()[0]
+        storage.initialize()
+        with storage.connect() as db: self.assertEqual(db.execute('SELECT COUNT(*) FROM articles').fetchone()[0],count)
+
+    def test_reference_inline_company_and_duplicate_protection(self):
+        csrf=self.setup_admin()
+        fields={'csrf':csrf,'company_id':'','new_company_name':'Yeni Marka','new_company_sector':'Medya','published':'1','position':'2'}
+        self.assertEqual(self.client.request('/admin/referanslar/yeni',fields,upload=PNG)[0],303)
+        with storage.connect() as db:
+            company=dict(db.execute("SELECT * FROM companies WHERE name='Yeni Marka'").fetchone())
+            ref=dict(db.execute('SELECT * FROM reference_items WHERE company_id=?',(company['id'],)).fetchone())
+        self.assertEqual(Client(self.client.port).request(company['logo'])[0],200)
+        self.assertEqual(self.client.request('/admin/referanslar/yeni',fields)[0],400)
+        self.assertEqual(self.client.request('/admin/sirketler/yeni',{'csrf':csrf,'name':'  Yeni  Marka '})[0],400)
+        self.assertEqual(self.client.request('/admin/referanslar/'+str(ref['id'])+'/duzenle',{**fields,'company_id':str(company['id']),'published':''})[0],303)
+        self.assertEqual(Client(self.client.port).request(company['logo'])[0],404)
+        listing=self.client.request('/admin/sirketler')[1].decode()
+        self.assertIn('Referans taslak',listing)
+        self.assertIn('/admin/referanslar/'+str(ref['id'])+'/duzenle',listing)
+        self.assertNotIn('Yeni Marka',self.client.request('/admin/sirketler?status=unlinked')[1].decode())
+        bad={**fields,'new_company_name':'Kaydedilmemeli','position':'-1'}
+        self.assertEqual(self.client.request('/admin/referanslar/yeni',bad)[0],400)
+        with storage.connect() as db: self.assertIsNone(db.execute("SELECT id FROM companies WHERE name='Kaydedilmemeli'").fetchone())
     def test_crud_publication_uploads_persistence_and_deletion(self):
         csrf=self.setup_admin();other=Client(self.client.port)
         # Authenticated company and image upload; logo remains private until referenced publicly.
@@ -156,13 +218,21 @@ class WebsiteTests(unittest.TestCase):
         self.assertIn('frame-src',headers['Content-Security-Policy'])
         self.assertEqual(self.client.request(gallery+f'/{photo["id"]}/sil',{'csrf':csrf})[0],303)
         self.assertEqual(visitor.request(photo['url'])[0],404)
-        settings={'csrf':csrf,'whatsapp':'+90 588 888 88 88','address':'Test adresi','instagram':'https://www.instagram.com/seysamedya/','linkedin':'https://www.linkedin.com/company/seysamedya/'}
+        settings={'csrf':csrf,'email':'hello@example.com','whatsapp':'+90 588 888 88 88','address':'Test adresi','instagram':'https://www.instagram.com/seysamedya/','linkedin':'https://www.linkedin.com/company/seysamedya/'}
         self.assertEqual(self.client.request('/admin/site-bilgileri',settings)[0],303)
         home=visitor.request('/')[1]
         self.assertIn(b'https://wa.me/905888888888',home)
         self.assertIn(b'Test adresi',home)
+        self.assertIn(b'mailto:hello@example.com',home)
+        self.assertIn(b'mailto:hello@example.com',visitor.request('/iletisim')[1])
+        hostname='localhost:'+str(self.client.port)
+        self.assertEqual(self.client.request('/admin/site-bilgileri',settings,host=hostname,origin='http://'+hostname)[0],303)
+        self.assertEqual(self.client.request('/admin/site-bilgileri',settings,host=hostname,origin='https://evil.example')[0],403)
         settings['instagram']='javascript:alert(1)'
-        self.assertEqual(self.client.request('/admin/site-bilgileri',settings)[0],400)
+        invalid=self.client.request('/admin/site-bilgileri',settings)
+        self.assertEqual(invalid[0],400)
+        self.assertIn(b'name="email"',invalid[1])
+        self.assertIn(b'hello@example.com',invalid[1])
         self.assertEqual(self.client.request(f'/admin/projeler/{project_id}/sil',{'csrf':csrf})[0],303)
         with storage.connect() as db: self.assertEqual(db.execute('SELECT COUNT(*) FROM project_media').fetchone()[0],0)
 

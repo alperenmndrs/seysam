@@ -3,6 +3,7 @@ import hashlib
 import os
 import secrets
 import sqlite3
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -33,12 +34,19 @@ def initialize():
         CREATE TABLE IF NOT EXISTS reference_items (id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE, quote TEXT NOT NULL DEFAULT '', author TEXT NOT NULL DEFAULT '', is_sample INTEGER NOT NULL DEFAULT 0 CHECK(is_sample IN (0,1)), published INTEGER NOT NULL DEFAULT 0 CHECK(published IN (0,1)), position INTEGER NOT NULL DEFAULT 0);
         CREATE INDEX IF NOT EXISTS idx_references_published_position ON reference_items(published,position);
         CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS articles (id INTEGER PRIMARY KEY, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, category TEXT NOT NULL CHECK(category IN ('rehberler','sektor-haberleri')), topic TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '', takeaway TEXT NOT NULL DEFAULT '', source_label TEXT NOT NULL DEFAULT '', source_url TEXT NOT NULL DEFAULT '', date TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0 CHECK(published IN (0,1)), position INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
         ''')
         db.execute('PRAGMA optimize')
         columns={row['name'] for row in db.execute('PRAGMA table_info(projects)')}
         for name in ('brief','process','result'):
             if name not in columns: db.execute('ALTER TABLE projects ADD COLUMN '+name+" TEXT NOT NULL DEFAULT ''")
-        for key,value in {'whatsapp':'905888888888', 'address':'Prestige 24 Plaza N:10 Bahçelievler/İstanbul', 'instagram':'https://www.instagram.com/seysamedya/', 'linkedin':'https://www.linkedin.com/company/seysamedya/'}.items():
+        if not db.execute("SELECT 1 FROM app_meta WHERE key='articles_seeded'").fetchone():
+            from .journal import ARTICLES
+            for item in ARTICLES:
+                source=item.get('source', ('',''))
+                db.execute('INSERT OR IGNORE INTO articles(slug,title,category,topic,summary,body,image,takeaway,source_label,source_url,date,published) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)', (item['slug'],item['title'],item['category'],item['topic'],item['summary'],'\n\n'.join('## '+h+'\n'+p for h,p in item['sections']),'/assets/media/'+item['image']+'.jpg',item['takeaway'],*source,item['date']))
+            db.execute("INSERT INTO app_meta(key,value) VALUES('articles_seeded','1')")
+        for key,value in {'email':'info@seysamedya.com', 'whatsapp':'905888888888', 'address':'Prestige 24 Plaza N:10 Bahçelievler/İstanbul', 'instagram':'https://www.instagram.com/seysamedya/', 'linkedin':'https://www.linkedin.com/company/seysamedya/'}.items():
             db.execute('INSERT OR IGNORE INTO app_meta(key,value) VALUES(?,?)',('site_'+key,value))
     if DB.exists(): os.chmod(DB, 0o600)
 
@@ -66,4 +74,26 @@ def public_data():
 
 def site_settings():
     with connect() as db:
-        return {r['key'][5:]:r['value'] for r in db.execute("SELECT key,value FROM app_meta WHERE key IN ('site_whatsapp','site_address','site_instagram','site_linkedin')")}
+        return {r['key'][5:]:r['value'] for r in db.execute("SELECT key,value FROM app_meta WHERE key IN ('site_email','site_whatsapp','site_address','site_instagram','site_linkedin')")}
+
+
+def article_content(record):
+    item=dict(record)
+    sections=[]; heading=''; lines=[]
+    for line in item['body'].splitlines():
+        if line.startswith('## '):
+            if heading or '\n'.join(lines).strip(): sections.append((heading or 'Giriş','\n'.join(lines).strip()))
+            heading=line[3:].strip(); lines=[]
+        else: lines.append(line)
+    if heading or '\n'.join(lines).strip(): sections.append((heading or 'Giriş','\n'.join(lines).strip()))
+    item['sections']=sections
+    d=date.fromisoformat(item['date'])
+    months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık']
+    item['date_label']=f'{d.day} {months[d.month-1]} {d.year}'
+    if item['source_url']: item['source']=(item['source_label'] or 'Kaynak',item['source_url'])
+    return item
+
+
+def public_articles():
+    with connect() as db:
+        return [article_content(r) for r in db.execute('SELECT * FROM articles WHERE published=1 ORDER BY position,date DESC,id DESC')]

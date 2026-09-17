@@ -18,7 +18,6 @@ sys.path.insert(0, str(ROOT))
 
 from seysa import storage, views
 from seysa.content import SERVICES
-from seysa.journal import ARTICLES
 
 DOCS_DIR = ROOT / 'docs'
 
@@ -87,6 +86,7 @@ def export():
     print('📦 Statik site derlemesi başlatılıyor...')
     storage.initialize()
     projects, refs = storage.public_data()
+    articles = storage.public_articles()
     print(f'   - {len(projects)} yayınlanan proje ve {len(refs)} referans veritabanından alındı.')
 
     # 1. docs/ klasörünü temizle/oluştur
@@ -105,7 +105,7 @@ def export():
     # Yüklenen görselleri kopyala (.data/uploads -> docs/uploads)
     uploads_target = DOCS_DIR / 'uploads'
     uploads_target.mkdir(parents=True, exist_ok=True)
-    published_media = {p['image'] for p in projects} | {r['logo'] for r in refs} | {m['url'] for p in projects for m in p.get('gallery',[]) if m['kind']=='image'}
+    published_media = {a['image'] for a in articles} | {p['image'] for p in projects} | {r['logo'] for r in refs} | {m['url'] for p in projects for m in p.get('gallery',[]) if m['kind']=='image'}
     for url in published_media:
         if not url.startswith('/uploads/'): continue
         item=storage.UPLOADS / Path(url).name
@@ -133,7 +133,7 @@ def export():
         pages[path] = (views.services_page(path), depth)
 
     # Proje detay sayfaları
-    for suffix in ['', '/rehberler', '/sektor-haberleri'] + ['/'+a['slug'] for a in ARTICLES]:
+    for suffix in ['', '/rehberler', '/sektor-haberleri'] + ['/'+a['slug'] for a in articles]:
         path = '/icerik-rehberi'+suffix
         pages[path] = (views.journal_page(path), len(path.strip('/').split('/')))
 
